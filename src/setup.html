@@ -8,12 +8,6 @@
       * { box-sizing: border-box; }
       body { font-family: -apple-system, system-ui, sans-serif; margin: 0; height: 100vh;
         display: flex; flex-direction: column; background: #f5f5f7; color: #1d1d1f; }
-      @media (prefers-color-scheme: dark) {
-        body { background: #1c1c1e; color: #f2f2f7; }
-        .card, input, select { background: #2c2c2e; }
-        input, select { color: #fff; border-color: #48484a; }
-        .muted { color: #98989d; }
-      }
       header { background: linear-gradient(150deg, #334155, #1e293b); color: #fff;
         padding: 18px 26px; display: flex; align-items: center; gap: 12px; }
       header .name { font-size: 17px; font-weight: 600; }
@@ -32,8 +26,8 @@
       input[type="number"] { width: 64px; padding: 6px 8px; border-radius: 6px; border: 1px solid #d2d2d7; }
       input[type="text"] { padding: 7px 9px; border-radius: 6px; border: 1px solid #d2d2d7; width: 170px; }
       .switch { position: relative; width: 44px; height: 26px; flex: none; }
-      .switch input { opacity: 0; width: 0; height: 0; }
-      .slider { position: absolute; inset: 0; background: #c7c7cc; border-radius: 26px; transition: .2s; cursor: pointer; }
+      .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 2; }
+      .slider { position: absolute; inset: 0; background: #c7c7cc; border-radius: 26px; transition: .2s; cursor: pointer; z-index: 1; }
       .slider::before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
       input:checked + .slider { background: #34c759; }
       input:checked + .slider::before { transform: translateX(18px); }
@@ -60,6 +54,19 @@
       .check.on { opacity: 1; }
       .check.on .mark { background: #34c759; border-color: #34c759; }
       .check.on .mark::after { content: "✓"; color: #fff; font-size: 11px; font-weight: 700; }
+      .qr { display: flex; align-items: center; gap: 14px; margin: 10px 0; }
+      .qr img { width: 96px; height: 96px; border-radius: 8px; background: #fff; padding: 6px; flex: none; }
+      a { color: #0a84ff; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1c1c1e; color: #f2f2f7; }
+        .card { background: #2c2c2e; }
+        input, select { background: #3a3a3c; color: #fff; border-color: #48484a; }
+        .muted { color: #98989d; }
+        .check { color: #f2f2f7; }
+        .btn { border-color: #48484a; }
+        .status { background: rgba(255,255,255,.07); }
+        a { color: #4aa3ff; }
+      }
     </style>
   </head>
   <body>
@@ -136,9 +143,14 @@
           <div class="status" id="watchStatus" style="display:none"><span class="dot"></span><span id="watchText"></span></div>
         </div>
         <p class="muted">Setup:</p>
-        <ol class="muted">
-          <li>Install <b>ntfy</b> from the App Store on your iPhone.</li>
-          <li>Open it → tap “+” → <b>Subscribe to topic</b> → type your exact topic above.</li>
+        <div class="qr">
+          <img src="./ntfy-qr.svg" alt="QR code to the ntfy iOS app" />
+          <div class="muted"><b>1.</b> Install <b>ntfy</b> on your iPhone —
+            <a href="https://apps.apple.com/app/ntfy/id1625396347">get it on the App Store ↗</a>,
+            or scan this code with your phone camera.</div>
+        </div>
+        <ol class="muted" start="2">
+          <li>Open ntfy → tap “+” → <b>Subscribe to topic</b> → type your exact topic above.</li>
           <li>Come back and hit <b>Send test buzz</b> — you should feel it.</li>
         </ol>
       </section>

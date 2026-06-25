@@ -95,8 +95,12 @@ $("#calibrate").addEventListener("click", () => {
 });
 window.api.on("setup:calibrated", () => {
   calibrated = true;
-  setStatus("calStatus", "calText", "ok", "Calibrated ✓ — your baseline is set.");
-  if (i === 2) $("#next").disabled = false;
+  $("#calibrate").disabled = true;
+  setStatus("calStatus", "calText", "ok", "Calibrated ✓ — baseline set. Moving on…");
+  if (i === 2) {
+    $("#next").disabled = false;
+    setTimeout(() => { if (i === 2) show(3); }, 1500); // auto-advance + closes the camera
+  }
 });
 
 // ---- breaks ---------------------------------------------------------------

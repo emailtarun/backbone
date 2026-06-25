@@ -12,60 +12,74 @@ const scoreEl = document.getElementById("score");
 const msgEl = document.getElementById("msg");
 const fillEl = document.getElementById("fill");
 
-// MediaPipe BlazePose landmark indices we care about.
-const NOSE = 0;
-const L_EAR = 7,
-  R_EAR = 8;
-const L_SH = 11,
-  R_SH = 12;
+// MediaPipe BlazePose landmark indices.
+const NOSE = 0, L_EYE = 2, R_EYE = 5, L_EAR = 7, R_EAR = 8, L_SH = 11, R_SH = 12;
 
-let config = { badnessThreshold: 35, weights: { neck: 1, lean: 0.6, tilt: 0.8 } };
+let config = { badnessThreshold: 37 };
 let paused = false;
 let calibrateRequest = false;
-let calibrating = null; // { samples: [], until: timestamp }
-let baseline = null; // { neckRatio, shoulderWidth, noseDrop }
+let calibrating = null; // { samples: [], until }
+let baseline = null; // median feature vector
+let feat = null; // EMA-smoothed live features
+let badState = false; // hysteresis state
 
 // ---- helpers --------------------------------------------------------------
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: ((a.z || 0) + (b.z || 0)) / 2 });
 
-function metricsFrom(lm) {
-  const ls = lm[L_SH],
-    rs = lm[R_SH],
-    le = lm[L_EAR],
-    re = lm[R_EAR],
-    nose = lm[NOSE];
-  // visibility gate
-  const vis = [ls, rs, le, re, nose].every((p) => (p.visibility ?? 1) > 0.5);
-  if (!vis) return null;
+const FEAT_KEYS = ["sw", "eye", "shY", "headY", "neck", "noseDrop", "fwdZ", "noseZ", "shTilt", "headTilt"];
 
-  const shoulderMid = mid(ls, rs);
-  const earMid = mid(le, re);
-  const shoulderWidth = dist(ls, rs); // grows as you lean toward the camera
-  if (shoulderWidth < 1e-4) return null;
-
-  // Vertical gap from shoulders up to ears, normalized by shoulder width.
-  // Shrinks when the head sinks / neck compresses (slouch).
-  const neckRatio = (shoulderMid.y - earMid.y) / shoulderWidth;
-  // How far the nose sits below the ear line (looking down), normalized.
-  const noseDrop = (nose.y - earMid.y) / shoulderWidth;
-
-  return { neckRatio, shoulderWidth, noseDrop };
+// Rich posture feature vector from one frame. Uses the depth (z) channel so we
+// can catch leaning forward/back — which a flat 2D view misses entirely.
+function featuresFrom(lm) {
+  const ls = lm[L_SH], rs = lm[R_SH], le = lm[L_EAR], re = lm[R_EAR],
+    nose = lm[NOSE], leye = lm[L_EYE], reye = lm[R_EYE];
+  if (![ls, rs, le, re, nose].every((p) => (p.visibility ?? 1) > 0.5)) return null;
+  const shMid = mid(ls, rs), earMid = mid(le, re);
+  const sw = dist(ls, rs);
+  if (sw < 1e-4) return null;
+  const eye = dist(leye, reye) || sw * 0.3;
+  return {
+    sw,                              // shoulder width — distance/lean proxy
+    eye,                             // inter-eye distance — head-only distance proxy
+    shY: shMid.y,                    // shoulder height in frame (slump = lower)
+    headY: earMid.y,                 // head height in frame
+    neck: (shMid.y - earMid.y) / sw, // neck gap (head sinking)
+    noseDrop: (nose.y - earMid.y) / sw, // looking down
+    fwdZ: earMid.z - shMid.z,        // forward-head / recline (depth)
+    noseZ: nose.z - shMid.z,         // head depth
+    shTilt: (ls.y - rs.y) / sw,      // shoulder roll
+    headTilt: (le.y - re.y) / sw,    // head roll
+  };
 }
 
-// Combine deviations from the calibrated baseline into a 0..100 "badness".
-function badness(m) {
-  if (!baseline) return 0;
-  const w = config.weights || { neck: 1, lean: 0.6, tilt: 0.8 };
-  // head sinking: neckRatio dropped relative to baseline
-  const dNeck = Math.max(0, (baseline.neckRatio - m.neckRatio) / baseline.neckRatio);
-  // leaning toward the camera: shoulders appear wider than baseline
-  const dLean = Math.max(0, m.shoulderWidth / baseline.shoulderWidth - 1);
-  // looking down: nose dropped further below the ears than baseline
-  const dTilt = Math.max(0, m.noseDrop - baseline.noseDrop);
+function smoothFeatures(raw) {
+  if (!feat) { feat = { ...raw }; return feat; }
+  const a = 0.35; // EMA — calms jitter, keeps it responsive
+  for (const k of FEAT_KEYS) feat[k] = feat[k] * (1 - a) + raw[k] * a;
+  return feat;
+}
 
-  const raw = dNeck * w.neck + dLean * 1.5 * w.lean + dTilt * 2.0 * w.tilt;
-  return Math.min(100, raw * 130);
+function median(arr) {
+  const s = [...arr].sort((x, y) => x - y), n = s.length;
+  return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0;
+}
+
+// Multi-factor posture badness (0..100) vs the calibrated baseline. Small
+// deadzones absorb natural movement; sums so several mild faults still add up.
+function badness(f) {
+  if (!baseline) return 0;
+  const b = baseline;
+  const sink = Math.max(0, b.neck - f.neck) / Math.max(0.05, b.neck);     // head sinking
+  const down = Math.max(0, f.noseDrop - b.noseDrop - 0.02);               // looking down
+  const distBad = Math.max(0, (Math.abs(f.sw / b.sw - 1) + Math.abs(f.eye / b.eye - 1)) / 2 - 0.04); // moved in/back
+  const vDrop = Math.max(0, f.shY - b.shY - 0.015) + Math.max(0, f.headY - b.headY - 0.015);          // slumped down
+  const zFwd = Math.max(0, b.fwdZ - f.fwdZ), zBack = Math.max(0, f.fwdZ - b.fwdZ);
+  const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.6 - 0.02);              // forward head / recline
+  const tilt = Math.max(0, Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt) - 0.03);
+  const raw =
+    sink * 120 + down * 280 + distBad * 170 + vDrop * 320 + zBad * 220 + tilt * 140;
+  return Math.min(100, raw);
 }
 
 function setState(cls, label, score, hint) {
@@ -113,6 +127,7 @@ let cameraStarted = false;
 // (Re)open the webcam using the configured device, at the widest field of view
 // we can get — high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
 async function startCamera() {
+  setState("none", "switching camera…", null, "");
   if (currentStream) { currentStream.getTracks().forEach((t) => t.stop()); currentStream = null; }
   const v = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
   if (config.cameraId) v.deviceId = { exact: config.cameraId };
@@ -133,8 +148,15 @@ async function applyFov() {
   try {
     const caps = videoTrack.getCapabilities();
     const adv = [];
-    if (config.wideFov !== false && caps.zoom && typeof caps.zoom.min === "number")
-      adv.push({ zoom: caps.zoom.min }); // minimum zoom = widest field of view
+    if (caps.zoom && typeof caps.zoom.min === "number") {
+      let z;
+      if (config.wideFov !== false) z = caps.zoom.min; // auto-widest
+      else {
+        const t = Math.min(1, Math.max(0, config.camZoom || 0));
+        z = caps.zoom.min + t * (caps.zoom.max - caps.zoom.min); // manual
+      }
+      adv.push({ zoom: z });
+    }
     if (caps.width && caps.width.max && caps.height && caps.height.max)
       adv.push({ width: caps.width.max, height: caps.height.max });
     if (adv.length) await videoTrack.applyConstraints({ advanced: adv });
@@ -148,7 +170,9 @@ async function reportCameras() {
       .filter((d) => d.kind === "videoinput")
       .map((d) => ({ id: d.deviceId, label: d.label || "Camera" }));
     const active = videoTrack && videoTrack.getSettings ? videoTrack.getSettings().deviceId : "";
-    window.api.send("cameras:list", { cameras, active });
+    const caps = videoTrack && videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+    const zoomSupported = !!(caps && caps.zoom && typeof caps.zoom.min === "number");
+    window.api.send("cameras:list", { cameras, active, zoomSupported });
   } catch (_) {}
 }
 
@@ -159,7 +183,7 @@ async function init() {
     );
     landmarker = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: {
-        modelAssetPath: new URL("../models/pose_landmarker_lite.task", import.meta.url).href,
+        modelAssetPath: new URL("../models/pose_landmarker_full.task", import.meta.url).href,
         delegate: "GPU",
       },
       runningMode: "VIDEO",
@@ -209,33 +233,30 @@ function loop() {
     return;
   }
 
-  const m = lm ? metricsFrom(lm) : null;
+  const raw = lm ? featuresFrom(lm) : null;
 
-  // calibration capture
-  if (calibrateRequest && m) {
+  // calibration capture (median of raw samples = robust baseline)
+  if (calibrateRequest && raw) {
     calibrateRequest = false;
-    calibrating = { samples: [], until: Date.now() + 2000 };
+    calibrating = { samples: [], until: Date.now() + 2500 };
   }
-  if (calibrating && m) {
-    calibrating.samples.push(m);
+  if (calibrating && raw) {
+    calibrating.samples.push(raw);
     setState("none", "calibrating…", null, "Hold still, sitting tall…");
-    if (Date.now() >= calibrating.until && calibrating.samples.length >= 5) {
+    if (Date.now() >= calibrating.until && calibrating.samples.length >= 8) {
       const s = calibrating.samples;
-      const avg = (key) => s.reduce((a, x) => a + x[key], 0) / s.length;
-      baseline = {
-        neckRatio: avg("neckRatio"),
-        shoulderWidth: avg("shoulderWidth"),
-        noseDrop: avg("noseDrop"),
-      };
-      calibrating = null;
+      baseline = {};
+      for (const k of FEAT_KEYS) baseline[k] = median(s.map((x) => x[k]));
+      calibrating = null; feat = null; badState = false;
       window.api.send("monitor:calibrated", true);
     }
     return;
   }
 
-  if (!m) {
+  if (!raw) {
     setState("none", "no person", null,
       baseline ? "" : "Calibrate from the menu while sitting upright.");
+    feat = null;
     throttleSend({ state: "no-person", score: 0 });
     return;
   }
@@ -254,15 +275,35 @@ function loop() {
     return;
   }
 
-  const score = badness(m);
-  const bad = score > (config.badnessThreshold ?? 35);
-  // proximity: how much closer to the camera than baseline (leaning in)
-  const proximity = baseline
-    ? Math.max(0, Math.min(100, (m.shoulderWidth / baseline.shoulderWidth - 1) * 300))
-    : 0;
-  setState(bad ? "bad" : "good", bad ? "slouching" : "good posture", score,
-    bad ? "Lift your head, roll shoulders back." : "Nice — keep it up.");
-  throttleSend({ state: bad ? "bad" : "good", score, proximity });
+  const f = smoothFeatures(raw);
+  const score = badness(f);
+  // hysteresis: enter "bad" above the threshold, only leave below 60% of it —
+  // keeps the state stable so nudges actually accumulate and fire.
+  const T = config.badnessThreshold ?? 37;
+  if (badState && score < T * 0.6) badState = false;
+  else if (!badState && score > T) badState = true;
+
+  const proximity = Math.max(0, Math.min(100, (f.sw / baseline.sw - 1) * 300));
+  setState(badState ? "bad" : "good", badState ? "slouching" : "good posture", score,
+    badState ? cueFor(f) : "Nice — keep it up.");
+  throttleSend({ state: badState ? "bad" : "good", score, proximity });
+}
+
+// Pick the dominant fault so the on-screen cue is specific, not generic.
+function cueFor(f) {
+  const b = baseline;
+  if (!b) return "Sit up tall.";
+  const faults = [
+    [Math.max(0, b.neck - f.neck) * 4, "Lift your head — your neck is collapsing"],
+    [Math.max(0, f.noseDrop - b.noseDrop) * 6, "Raise your chin — you're looking down"],
+    [Math.max(0, 1 - f.sw / b.sw) * 3, "Sit back up — you've slumped backward"],
+    [Math.max(0, f.sw / b.sw - 1) * 3, "Ease back from the screen"],
+    [Math.max(0, f.shY - b.shY) * 7, "Sit up — you've sunk down in the chair"],
+    [Math.max(0, b.fwdZ - f.fwdZ) * 5, "Pull your head back over your shoulders"],
+    [(Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt)) * 3, "Level out — you're leaning to one side"],
+  ];
+  faults.sort((a, c) => c[0] - a[0]);
+  return faults[0][1];
 }
 
 function throttleSend(payload) {
@@ -274,12 +315,12 @@ function throttleSend(payload) {
 
 // ---- IPC from main --------------------------------------------------------
 window.api.on("monitor:config", (cfg) => {
-  const prevCam = config.cameraId || "", prevWide = config.wideFov;
+  const prevCam = config.cameraId || "", prevWide = config.wideFov, prevZoom = config.camZoom;
   config = { ...config, ...cfg };
   if (cameraStarted) {
     if ((config.cameraId || "") !== prevCam)
       startCamera().catch((e) => window.api.send("monitor:error", String(e.message || e)));
-    else if (config.wideFov !== prevWide) applyFov();
+    else if (config.wideFov !== prevWide || config.camZoom !== prevZoom) applyFov();
   }
 });
 window.api.on("monitor:setPaused", (p) => {

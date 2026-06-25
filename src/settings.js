@@ -104,8 +104,8 @@ $("#resetEx").addEventListener("click", async () => {
 });
 $("#testLong").addEventListener("click", () => window.api.send("break:test", "long"));
 
-// ---- camera picker --------------------------------------------------------
-function populateCameras({ cameras, active } = {}) {
+// ---- camera picker + zoom -------------------------------------------------
+function populateCameras({ cameras, active, zoomSupported } = {}) {
   const sel = $("#cameraId");
   if (!sel) return;
   const chosen = cfg.cameraId || active || "";
@@ -117,11 +117,29 @@ function populateCameras({ cameras, active } = {}) {
     if (c.id === chosen) o.selected = true;
     sel.appendChild(o);
   });
+  if (zoomSupported !== undefined) {
+    const z = $("#camZoom");
+    z.disabled = !zoomSupported;
+    if (!zoomSupported) $("#zoomHint").textContent = "this camera doesn't support zoom";
+  }
 }
 window.api.on("cameras:list", populateCameras);
 $("#cameraId").addEventListener("change", (e) => {
   cfg.cameraId = e.target.value;
   save({ cameraId: e.target.value });
+});
+// Dragging zoom turns off auto-widest so the manual value takes effect.
+$("#camZoom").addEventListener("input", (e) => {
+  const v = Number(e.target.value) / 100;
+  cfg.camZoom = v;
+  $("#zoomHint").textContent = v === 0 ? "0 = widest" : Math.round(v * 100) + "% toward max zoom";
+  document.querySelector('[data-key="wideFov"]').checked = false;
+  clearTimeout(e.target._t);
+  e.target._t = setTimeout(() => save({ camZoom: v, wideFov: false }), 120);
+});
+// Re-enabling auto-widest snaps the slider back to 0.
+document.querySelector('[data-key="wideFov"]').addEventListener("change", (e) => {
+  if (e.target.checked) { $("#camZoom").value = 0; $("#zoomHint").textContent = "0 = widest"; }
 });
 
 // ---- apple watch / ntfy ---------------------------------------------------
@@ -142,6 +160,8 @@ $("#testWatch").addEventListener("click", () => window.api.send("watch:test"));
   bindInputs();
   renderDays(cfg.workDays || []);
   renderExercises(cfg.exercises || []);
+  $("#camZoom").value = Math.round((cfg.camZoom || 0) * 100);
+  $("#zoomHint").textContent = cfg.camZoom ? Math.round(cfg.camZoom * 100) + "% toward max zoom" : "0 = widest";
   const cams = await window.api.invoke("cameras:get");
   if (cams) populateCameras(cams);
 })();

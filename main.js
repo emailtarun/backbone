@@ -71,6 +71,7 @@ const store = new Store({
     setupComplete: false,
     cameraId: "", // "" = system default camera
     wideFov: true, // widest field of view (min zoom) for best framing
+    camZoom: 0, // manual zoom 0..1 (0 = widest); used when wideFov is off
     theme: "auto",
     overlayTheme: "slate",
     exercises: DEFAULT_EXERCISES,
@@ -108,6 +109,7 @@ let warnShownFor = null; // 'micro' | 'long' | null
 let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
 let checkingUpdate = false;
+let lastMenuSig = null; // dedupe tray menu rebuilds (rebuilding closes an open menu)
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -209,8 +211,14 @@ function rebuildMenu() {
   const statusLabel = clockedOut
     ? "Clocked out"
     : monitoring
-    ? `Posture: ${postureState}${["good", "bad"].includes(postureState) ? ` (${Math.round(lastScore)})` : ""}`
+    ? `Posture: ${postureState === "bad" ? "slouching" : postureState}`
     : "Posture: paused";
+
+  // Only rebuild the menu when its visible text changes — rebuilding while the
+  // menu is open closes it, which made it "disappear" on click.
+  const sig = [statusLabel, nextBreak, monitoring, clockedOut, updateReady, updateVersion].join("|");
+  if (sig === lastMenuSig) return;
+  lastMenuSig = sig;
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -369,11 +377,12 @@ function onPostureUpdate(p) {
     flashCmd({ type: "proximity", on: p.proximity > proximityThreshold() });
   }
 
+  // The detector resolves good/bad with smoothing + hysteresis; trust its state.
   if (p.state === "no-person") {
     postureState = "no-person";
     badSince = null;
     stats.sample("no-person");
-  } else if (p.score > badnessThreshold()) {
+  } else if (p.state === "bad") {
     postureState = "bad";
     if (!badSince) badSince = Date.now();
     stats.sample("bad");
@@ -399,8 +408,11 @@ function maybeNudge() {
       tags: "warning",
     });
 
+  // Always give an on-screen flash — it works even if macOS notifications are
+  // off/suppressed, so a nudge is never silently missed.
+  flashCmd({ type: "flash" });
+
   const style = store.get("nudgeStyle");
-  if (style === "flash" || style === "silent") flashCmd({ type: "flash" });
   if (style === "voice") playSound("voice", "Check your posture. Sit up tall.");
   else if (style !== "silent") {
     if (store.get("soundEnabled")) playSound("nudge");
@@ -683,7 +695,9 @@ ipcMain.on("setup:showCamera", (_e, on) => {
 ipcMain.on("setup:done", () => {
   store.set("setupComplete", true);
   if (wins.setup && !wins.setup.isDestroyed()) wins.setup.close();
+  if (wins.monitor && !wins.monitor.isDestroyed()) wins.monitor.hide();
   if (!monitoring && store.get("startMonitoringOnLaunch")) setMonitoring(true);
+  showWin("settings"); // let them fine-tune right away
   notify("Backbone is on", "I'm in your menu bar, watching your posture. 🦴", true);
 });
 ipcMain.on("watch:test", (e) => {
