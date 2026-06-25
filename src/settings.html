@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Backbone — Settings</title>
+    <style>
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 20px 22px 40px;
+        background: #f5f5f7; color: #1d1d1f; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1c1c1e; color: #f2f2f7; }
+        .card { background: #2c2c2e !important; }
+        input, select { background:#3a3a3c; color:#fff; border-color:#48484a !important; }
+        .ex-row { background:#3a3a3c !important; }
+      }
+      h1 { font-size: 19px; margin: 0 0 4px; }
+      .sub { opacity: .55; font-size: 12px; margin-bottom: 16px; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; margin: 18px 4px 8px; }
+      .card { background: #fff; border-radius: 12px; padding: 6px 16px; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 11px 0; border-bottom: 1px solid rgba(128,128,128,.14); }
+      .row:last-child { border-bottom: none; }
+      label { font-size: 14px; }
+      .hint { font-size: 11px; opacity: .5; margin-top: 2px; }
+      input[type="range"] { width: 170px; }
+      input[type="number"] { width: 62px; padding: 5px 7px; border-radius: 6px; border: 1px solid #d2d2d7; }
+      input[type="time"] { padding: 4px 6px; border-radius: 6px; border: 1px solid #d2d2d7; }
+      select { padding: 5px 8px; border-radius: 6px; border: 1px solid #d2d2d7; }
+      .switch { position: relative; width: 44px; height: 26px; flex: none; }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider { position: absolute; inset: 0; background: #c7c7cc; border-radius: 26px; transition: .2s; cursor: pointer; }
+      .slider::before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+        background: #fff; border-radius: 50%; transition: .2s; }
+      input:checked + .slider { background: #34c759; }
+      input:checked + .slider::before { transform: translateX(18px); }
+      .days { display: flex; gap: 5px; }
+      .days button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #d2d2d7;
+        background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
+      .days button.on { background: #34c759; color: #fff; border-color: #34c759; }
+      .ex-row { display: flex; gap: 6px; align-items: center; background: #f0f0f2; border-radius: 8px;
+        padding: 6px 8px; margin: 6px 0; }
+      .ex-row input.name { flex: 1; }
+      .ex-row input.sec { width: 54px; }
+      .ex-row input.cue { flex: 2; }
+      .ex-row .del { cursor: pointer; opacity: .5; border: none; background: none; font-size: 16px; color: inherit; }
+      .btnrow { display: flex; gap: 8px; margin: 10px 0; }
+      .btn { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+        border: 1px solid #d2d2d7; background: transparent; color: inherit; cursor: pointer; }
+      .btn.primary { background: #334155; color: #fff; border-color: #334155; }
+    </style>
+  </head>
+  <body>
+    <h1>Settings</h1>
+    <div class="sub">Everything applies instantly.</div>
+
+    <h2>Posture monitoring</h2>
+    <div class="card">
+      <div class="row"><label>Enable posture monitoring</label><span class="switch"><input type="checkbox" data-key="postureEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Sensitivity<div class="hint" id="sensHint"></div></label><input type="range" data-key="sensitivity" min="0" max="100" step="5" /></div>
+      <div class="row"><label>Slouch hold before nudge<div class="hint">seconds</div></label><input type="number" data-key="holdSeconds" min="3" max="120" /></div>
+      <div class="row"><label>Min gap between nudges<div class="hint">minutes</div></label><input type="number" data-key="alertCooldownMin" min="1" max="60" /></div>
+      <div class="row"><label>Nudge style</label>
+        <select data-key="nudgeStyle">
+          <option value="notification">Notification</option>
+          <option value="flash">Screen flash</option>
+          <option value="voice">Spoken voice</option>
+          <option value="silent">Silent (flash only)</option>
+        </select></div>
+      <div class="row"><label>“Lean back” proximity alert</label><span class="switch"><input type="checkbox" data-key="proximityAlert" /><span class="slider"></span></span></div>
+      <div class="row"><label>Proximity sensitivity</label><input type="range" data-key="proximitySensitivity" min="0" max="100" step="5" /></div>
+    </div>
+
+    <h2>Breaks</h2>
+    <div class="card">
+      <div class="row"><label>Micro eye breaks (20-20-20)</label><span class="switch"><input type="checkbox" data-key="microEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Micro interval<div class="hint">minutes</div></label><input type="number" data-key="microIntervalMin" min="1" max="180" /></div>
+      <div class="row"><label>Micro duration<div class="hint">seconds</div></label><input type="number" data-key="microDurationSec" min="5" max="120" /></div>
+      <div class="row"><label>Long stretch breaks</label><span class="switch"><input type="checkbox" data-key="longEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Long interval<div class="hint">minutes</div></label><input type="number" data-key="longIntervalMin" min="5" max="240" /></div>
+      <div class="row"><label>Long duration<div class="hint">seconds (used if no exercises)</div></label><input type="number" data-key="longDurationSec" min="30" max="900" /></div>
+      <div class="row"><label>Pre-break cursor countdown<div class="hint">seconds of warning</div></label><input type="number" data-key="preBreakWarnSec" min="0" max="60" /></div>
+      <div class="row"><label>Show cursor countdown</label><span class="switch"><input type="checkbox" data-key="showCursorTimer" /><span class="slider"></span></span></div>
+      <div class="row"><label>Strict breaks<div class="hint">no skip / postpone</div></label><span class="switch"><input type="checkbox" data-key="strictBreaks" /><span class="slider"></span></span></div>
+    </div>
+
+    <h2>Stretch routine</h2>
+    <div class="card">
+      <div id="exList"></div>
+      <div class="btnrow">
+        <button class="btn" id="addEx">+ Add stretch</button>
+        <button class="btn" id="resetEx">Reset to defaults</button>
+        <button class="btn primary" id="testLong">Preview long break</button>
+      </div>
+    </div>
+
+    <h2>Apple Watch / phone buzz</h2>
+    <div class="card">
+      <div class="row"><label>Send buzzes to my phone &amp; Watch<div class="hint">via ntfy — mirrors to the Watch as a haptic tap</div></label><span class="switch"><input type="checkbox" data-key="watchEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>ntfy topic<div class="hint">a secret name; subscribe to it in the ntfy iOS app</div></label><input type="text" data-key="watchTopic" placeholder="posture-…" style="width:150px" /></div>
+      <div class="row"><label>Buzz strength<div class="hint">stronger = longer haptic; Urgent can pierce Focus/DND</div></label>
+        <select data-key="watchPriority" data-numeric>
+          <option value="2">Gentle</option>
+          <option value="3">Normal</option>
+          <option value="4">Strong</option>
+          <option value="5">Urgent</option>
+        </select></div>
+      <div class="row"><label>Buzz when slouching</label><span class="switch"><input type="checkbox" data-key="watchPosture" /><span class="slider"></span></span></div>
+      <div class="row"><label>Buzz on break reminders</label><span class="switch"><input type="checkbox" data-key="watchBreaks" /><span class="slider"></span></span></div>
+      <div class="row"><label>Server<div class="hint">default ntfy.sh; change only if self-hosting</div></label><input type="text" data-key="watchServer" style="width:150px" /></div>
+      <div class="btnrow">
+        <button class="btn" id="genTopic">Generate topic</button>
+        <button class="btn primary" id="testWatch">Send test buzz</button>
+      </div>
+      <div class="hint" style="padding:2px 2px 8px">Setup: install <b>ntfy</b> from the App Store → tap “+” → subscribe to your exact topic above. Then tap “Send test buzz”.</div>
+    </div>
+
+    <h2>Sound</h2>
+    <div class="card">
+      <div class="row"><label>Sound cues</label><span class="switch"><input type="checkbox" data-key="soundEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Volume<div class="hint" id="volHint"></div></label><input type="range" data-key="soundVolume" min="0" max="1" step="0.05" /></div>
+    </div>
+
+    <h2>Schedule &amp; smart pause</h2>
+    <div class="card">
+      <div class="row"><label>Only during working hours</label><span class="switch"><input type="checkbox" data-key="workingHoursEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Working hours</label><span><input type="time" data-key="workStart" /> – <input type="time" data-key="workEnd" /></span></div>
+      <div class="row"><label>Work days</label><div class="days" id="days"></div></div>
+      <div class="row"><label>Quiet hours (no nudges)</label><span class="switch"><input type="checkbox" data-key="quietHoursEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Quiet from / to</label><span><input type="time" data-key="quietStart" /> – <input type="time" data-key="quietEnd" /></span></div>
+      <div class="row"><label>Auto-pause when idle<div class="hint">seconds of no input</div></label><input type="number" data-key="idlePauseSec" min="15" max="600" /></div>
+      <div class="row"><label>Reset break timers after idle</label><span class="switch"><input type="checkbox" data-key="idleResetBreaks" /><span class="slider"></span></span></div>
+    </div>
+
+    <h2>System &amp; appearance</h2>
+    <div class="card">
+      <div class="row"><label>Launch at login</label><span class="switch"><input type="checkbox" data-key="launchAtLogin" /><span class="slider"></span></span></div>
+      <div class="row"><label>Start monitoring on launch</label><span class="switch"><input type="checkbox" data-key="startMonitoringOnLaunch" /><span class="slider"></span></span></div>
+      <div class="row"><label>Break overlay theme</label>
+        <select data-key="overlayTheme">
+          <option value="slate">Slate (Backbone)</option>
+          <option value="aurora">Aurora</option>
+          <option value="sunset">Sunset</option>
+          <option value="forest">Forest</option>
+          <option value="mono">Mono</option>
+        </select></div>
+    </div>
+
+    <script src="./settings.js"></script>
+  </body>
+</html>

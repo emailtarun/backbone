@@ -1,0 +1,56 @@
+{
+  "name": "backbone",
+  "version": "0.1.0",
+  "description": "Backbone — a menu-bar app that watches your posture via webcam and reminds you to move.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "fetch-model": "node scripts/fetch-model.js",
+    "make-icons": "node scripts/make-icon-assets.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18",
+    "electron-store": "^8.2.0"
+  },
+  "build": {
+    "appId": "io.milkshake.backbone",
+    "productName": "Backbone",
+    "asar": false,
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**",
+      "src/**",
+      "vendor/**",
+      "models/**",
+      "node_modules/**"
+    ],
+    "mac": {
+      "category": "public.app-category.healthcare-fitness",
+      "icon": "build/icon.icns",
+      "target": ["dmg", "zip"],
+      "extendInfo": {
+        "NSCameraUsageDescription": "Backbone uses your webcam on-device to detect your sitting posture. No video is recorded or sent anywhere.",
+        "LSUIElement": 1
+      }
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

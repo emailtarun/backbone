@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Backbone — Stats</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 22px 26px;
+        background: #f5f5f7; color: #1d1d1f; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1c1c1e; color: #f2f2f7; }
+        .card { background: #2c2c2e !important; }
+        .muted { color: #98989d !important; }
+        line, .grid { stroke: #3a3a3c !important; }
+      }
+      h1 { font-size: 20px; margin: 0 0 16px; }
+      .grid-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+      .card { background: #fff; border-radius: 14px; padding: 16px 18px; }
+      .big { font-size: 30px; font-weight: 700; line-height: 1.1; }
+      .lbl { font-size: 12px; opacity: .6; margin-top: 4px; }
+      .muted { color: #6e6e73; }
+      .wide { margin-bottom: 16px; }
+      .row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+      .row h2 { font-size: 15px; margin: 0; }
+      .foot { font-size: 11px; opacity: .5; text-align: center; margin-top: 4px; }
+      svg text { fill: currentColor; opacity: .6; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Your posture &amp; breaks</h1>
+    <div class="grid-cards">
+      <div class="card"><div class="big" id="streak">–</div><div class="lbl">🔥 day streak</div></div>
+      <div class="card"><div class="big" id="todayPct">–</div><div class="lbl">good posture today</div></div>
+      <div class="card"><div class="big" id="goodMin">–</div><div class="lbl">good minutes today</div></div>
+      <div class="card"><div class="big" id="breaks">–</div><div class="lbl">breaks taken today</div></div>
+    </div>
+
+    <div class="card wide">
+      <div class="row"><h2>Last 7 days</h2><span class="muted" id="weekAvg"></span></div>
+      <div id="week"></div>
+    </div>
+
+    <div class="card wide">
+      <div class="row"><h2>Last 5 minutes</h2><span class="muted" id="nowPct"></span></div>
+      <div id="spark"></div>
+    </div>
+
+    <div class="foot" id="detail"></div>
+    <script src="./dashboard.js"></script>
+  </body>
+</html>

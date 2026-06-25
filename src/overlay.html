@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Break</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; }
+      body {
+        font-family: -apple-system, system-ui, sans-serif; color: #fff;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; transition: opacity .4s;
+      }
+      body.slate  { background: linear-gradient(155deg, #334155, #1e293b); }
+      body.slate #prog { stroke: #FB7185; }
+      body.slate #kind { color: #FB7185; opacity: 1; }
+      body.aurora { background: linear-gradient(150deg, #5b6cff, #00c6ad); }
+      body.sunset { background: linear-gradient(150deg, #ff7e5f, #feb47b); }
+      body.forest { background: linear-gradient(150deg, #0f9b6e, #1c3b2e); }
+      body.mono   { background: linear-gradient(150deg, #2b2b2e, #4a4a4f); }
+      #kind { text-transform: uppercase; letter-spacing: .16em; font-size: 14px; opacity: .85; }
+      #name { font-size: 40px; font-weight: 700; margin: 12px 24px 8px; }
+      #cue { font-size: 19px; opacity: .92; max-width: 620px; margin: 0 30px 30px; line-height: 1.5; }
+      #ring { position: relative; width: 210px; height: 210px; margin-bottom: 16px; }
+      svg { transform: rotate(-90deg); }
+      #count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      #steps { font-size: 13px; opacity: .7; margin-bottom: 26px; min-height: 16px; }
+      .btns { display: flex; gap: 12px; }
+      button { font: inherit; font-size: 15px; font-weight: 600; padding: 12px 24px; border-radius: 999px;
+        border: none; cursor: pointer; background: rgba(255,255,255,.16); color: #fff; backdrop-filter: blur(6px); }
+      button.primary { background: #fff; color: #1b1b50; }
+      button:hover { filter: brightness(1.1); }
+      .hidden { display: none !important; }
+      #clock { position: absolute; top: 26px; right: 32px; font-size: 14px; opacity: .6; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body class="aurora">
+    <div id="clock"></div>
+    <div id="kind">Break</div>
+    <div id="name">—</div>
+    <div id="cue"></div>
+    <div id="ring">
+      <svg width="210" height="210">
+        <circle cx="105" cy="105" r="92" stroke="rgba(255,255,255,.25)" stroke-width="11" fill="none" />
+        <circle id="prog" cx="105" cy="105" r="92" stroke="#fff" stroke-width="11" fill="none"
+                stroke-linecap="round" />
+      </svg>
+      <div id="count">–</div>
+    </div>
+    <div id="steps"></div>
+    <div class="btns">
+      <button id="postpone">Postpone 5 min</button>
+      <button id="skip" class="primary">Skip break</button>
+    </div>
+    <script src="./overlay.js"></script>
+  </body>
+</html>

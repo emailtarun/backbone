@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Countdown</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+        font-family: -apple-system, system-ui, sans-serif; pointer-events: none; }
+      #pill {
+        display: inline-flex; align-items: center; gap: 8px; margin: 8px;
+        background: rgba(20,20,24,.88); color: #fff; padding: 8px 12px; border-radius: 12px;
+        font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+      }
+      #secs { font-variant-numeric: tabular-nums; background: #5b6cff; border-radius: 7px;
+        padding: 2px 7px; min-width: 26px; text-align: center; }
+      #label { opacity: .85; }
+    </style>
+  </head>
+  <body>
+    <div id="pill"><span id="label">Break</span><span id="secs">–</span></div>
+    <script src="./timer.js"></script>
+  </body>
+</html>
