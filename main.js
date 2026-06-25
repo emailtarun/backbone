@@ -157,12 +157,12 @@ const store = new Store({
 });
 
 function badnessThreshold() {
-  // Lenient by default (50 -> ~47); higher sensitivity lowers it (stricter).
-  return 75 - (store.get("sensitivity") / 100) * 55;
+  // Balanced default (50 -> 40); higher sensitivity lowers it (stricter).
+  return 65 - (store.get("sensitivity") / 100) * 50;
 }
 function proximityThreshold() {
-  // Less sensitive by default (50 -> ~47); needs a clear lean-in, not a small one.
-  return 70 - (store.get("proximitySensitivity") / 100) * 45;
+  // Balanced default (50 -> ~44): triggers on a clear lean-in, ignores small shifts.
+  return 68 - (store.get("proximitySensitivity") / 100) * 48;
 }
 
 // ---------------------------------------------------------------------------

@@ -85,16 +85,17 @@ function median(arr) {
 function badness(f) {
   if (!baseline) return 0;
   const b = baseline;
-  // Generous deadzones so normal sitting + natural fidgeting stays at ~0 (green).
-  const sink = Math.max(0, (b.neck - f.neck) / Math.max(0.05, b.neck) - 0.06); // head sinking
-  const down = Math.max(0, f.noseDrop - b.noseDrop - 0.05);                     // looking down
-  const distBad = Math.max(0, (Math.abs(f.sw / b.sw - 1) + Math.abs(f.eye / b.eye - 1)) / 2 - 0.08); // moved in/back
-  const vDrop = Math.max(0, f.shY - b.shY - 0.03) + Math.max(0, f.headY - b.headY - 0.03);            // slumped down
+  // Balanced deadzones: normal sitting + small fidgets stay ~0 (green), but a
+  // clear recline / slouch / forward-head crosses the threshold.
+  const sink = Math.max(0, (b.neck - f.neck) / Math.max(0.05, b.neck) - 0.05); // head sinking
+  const down = Math.max(0, f.noseDrop - b.noseDrop - 0.04);                     // looking down
+  const distBad = Math.max(0, (Math.abs(f.sw / b.sw - 1) + Math.abs(f.eye / b.eye - 1)) / 2 - 0.05); // leaned in / back
+  const vDrop = Math.max(0, f.shY - b.shY - 0.025) + Math.max(0, f.headY - b.headY - 0.025);          // slumped down
   const zFwd = Math.max(0, b.fwdZ - f.fwdZ), zBack = Math.max(0, f.fwdZ - b.fwdZ);
-  const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.5 - 0.05);                    // forward head / recline
-  const tilt = Math.max(0, Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt) - 0.05);
+  const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.6 - 0.04);                    // forward head / recline
+  const tilt = Math.max(0, Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt) - 0.045);
   const raw =
-    sink * 90 + down * 200 + distBad * 120 + vDrop * 240 + zBad * 150 + tilt * 100;
+    sink * 100 + down * 220 + distBad * 175 + vDrop * 280 + zBad * 185 + tilt * 110;
   return Math.min(100, raw);
 }
 
