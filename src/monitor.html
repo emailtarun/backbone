@@ -5,41 +5,58 @@
     <title>Backbone — Camera</title>
     <style>
       :root { color-scheme: dark; }
-      body {
-        margin: 0;
-        font-family: -apple-system, system-ui, sans-serif;
-        background: #11131a;
-        color: #e7e9ee;
-        overflow: hidden;
-      }
-      #wrap { position: relative; width: 420px; }
+      * { box-sizing: border-box; }
+      body { margin: 0; width: 480px; font-family: -apple-system, system-ui, sans-serif;
+        background: #0d0f14; color: #fff; overflow: hidden; user-select: none; }
+      #cam { position: relative; width: 480px; height: 360px; background: #000; overflow: hidden; }
       video { display: none; }
-      canvas { width: 420px; height: 315px; background: #000; display: block; }
-      #hud {
-        display: flex; align-items: center; gap: 10px;
-        padding: 8px 12px; font-size: 13px;
-      }
-      #dot { width: 12px; height: 12px; border-radius: 50%; background: #888; }
-      .good #dot { background: #34c759; }
-      .bad #dot { background: #ffcc00; }
-      .none #dot { background: #555; }
-      #score { font-variant-numeric: tabular-nums; opacity: .85; }
-      #msg { opacity: .7; font-size: 12px; padding: 0 12px 10px; min-height: 16px; }
-      #bar { height: 6px; background: #23262f; border-radius: 3px; margin: 0 12px; overflow: hidden; }
-      #fill { height: 100%; width: 0; background: #34c759; transition: width .15s, background .15s; }
+      canvas { width: 480px; height: 360px; display: block; }
+      /* head + shoulders framing guide */
+      #guide { position: absolute; left: 50%; top: 49%; transform: translate(-50%, -50%);
+        width: 62%; height: 82%; border: 3px dashed rgba(255,255,255,.55);
+        border-radius: 46% 46% 30% 30% / 42% 42% 30% 30%; transition: border-color .25s, box-shadow .25s; pointer-events: none; }
+      #guide.ready { border-style: solid; border-color: #34c759; box-shadow: 0 0 0 9999px rgba(0,0,0,.12); }
+      #chip { position: absolute; top: 12px; left: 12px; display: inline-flex; align-items: center; gap: 7px;
+        background: rgba(15,17,22,.72); backdrop-filter: blur(8px); padding: 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+      #chip .dot { width: 9px; height: 9px; border-radius: 50%; background: #8e8e93; }
+      #chip.good .dot { background: #34c759; } #chip.bad .dot { background: #ffd60a; } #chip.warn .dot { background: #ff9f0a; }
+      #grad { position: absolute; left: 0; right: 0; bottom: 0; height: 120px;
+        background: linear-gradient(transparent, rgba(13,15,20,.85)); pointer-events: none; }
+      #coach { padding: 16px 20px 20px; }
+      #cue { font-size: 19px; font-weight: 600; min-height: 24px; line-height: 1.25; }
+      #sub { font-size: 13px; opacity: .6; margin-top: 3px; min-height: 16px; }
+      #checks { display: flex; gap: 8px; margin: 14px 0; }
+      .chk { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+        font-size: 12px; padding: 7px 4px; border-radius: 9px; background: rgba(255,255,255,.07); opacity: .55; transition: .2s; }
+      .chk i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); display: inline-flex; }
+      .chk.on { opacity: 1; background: rgba(52,199,89,.16); }
+      .chk.on i { background: #34c759; border-color: #34c759; }
+      .chk.on i::after { content: "✓"; color: #fff; font-size: 9px; font-weight: 800; margin: auto; }
+      #calBtn { width: 100%; font: inherit; font-size: 16px; font-weight: 600; padding: 13px; border: none;
+        border-radius: 13px; background: #FB7185; color: #4c0519; cursor: pointer; transition: .15s; }
+      #calBtn:disabled { background: rgba(255,255,255,.12); color: rgba(255,255,255,.4); cursor: default; }
+      #calBtn:not(:disabled):active { transform: scale(.985); }
+      body.calibrated #checks { display: none; }
+      body.calibrated #calBtn { background: rgba(255,255,255,.12); color: #fff; font-size: 14px; padding: 10px; }
     </style>
   </head>
-  <body class="none">
-    <div id="wrap">
+  <body class="positioning">
+    <div id="cam">
       <video id="video" playsinline></video>
-      <canvas id="canvas" width="420" height="315"></canvas>
-      <div id="hud">
-        <div id="dot"></div>
-        <div id="state">starting…</div>
-        <div id="score"></div>
+      <canvas id="canvas" width="640" height="480"></canvas>
+      <div id="guide"></div>
+      <div id="grad"></div>
+      <div id="chip"><span class="dot"></span><span id="chipText">starting…</span></div>
+    </div>
+    <div id="coach">
+      <div id="cue">Getting ready…</div>
+      <div id="sub"></div>
+      <div id="checks">
+        <span class="chk" id="cFrame"><i></i> In frame</span>
+        <span class="chk" id="cLevel"><i></i> Level</span>
+        <span class="chk" id="cCenter"><i></i> Centered</span>
       </div>
-      <div id="bar"><div id="fill"></div></div>
-      <div id="msg"></div>
+      <button id="calBtn" disabled>Calibrate — sit tall</button>
     </div>
     <script type="module" src="./monitor.js"></script>
   </body>

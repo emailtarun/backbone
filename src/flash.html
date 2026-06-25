@@ -19,11 +19,21 @@
       }
       #hud.on { opacity: 1; transform: translateX(-50%) translateY(0); }
       #hud .dot { color: #ffb020; }
+      #cue {
+        position: fixed; bottom: 46px; left: 50%; transform: translateX(-50%) translateY(14px);
+        background: rgba(20,20,24,.86); color: #fff; padding: 14px 22px; border-radius: 16px;
+        font-family: -apple-system, system-ui, sans-serif; font-size: 17px; font-weight: 600;
+        backdrop-filter: blur(12px); opacity: 0; transition: opacity .3s, transform .3s;
+        box-shadow: 0 10px 34px rgba(0,0,0,.4); display: flex; align-items: center; gap: 11px;
+      }
+      #cue.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+      #cue .ic { width: 9px; height: 9px; border-radius: 50%; background: #FB7185; flex: none; }
     </style>
   </head>
   <body>
     <div id="border"></div>
     <div id="hud"><span class="dot">●</span> &nbsp;Lean back from your screen</div>
+    <div id="cue"><span class="ic"></span><span id="cueText"></span></div>
     <script src="./flash.js"></script>
   </body>
 </html>

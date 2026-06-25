@@ -153,6 +153,26 @@ $("#genTopic").addEventListener("click", () => {
 });
 $("#testWatch").addEventListener("click", () => window.api.send("watch:test"));
 
+// ---- segmented controls (reliable replacement for native <select>) --------
+function renderSeg(key, options, opts = {}) {
+  const box = $("#seg-" + key);
+  if (!box) return;
+  box.innerHTML = "";
+  options.forEach(([val, label]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (String(val) === String(cfg[key])) b.classList.add("on");
+    b.addEventListener("click", () => {
+      [...box.children].forEach((c) => c.classList.remove("on"));
+      b.classList.add("on");
+      const v = opts.numeric ? Number(val) : val;
+      cfg[key] = v;
+      save({ [key]: v }).then(() => opts.onPick && opts.onPick(v));
+    });
+    box.appendChild(b);
+  });
+}
+
 // ---- init -----------------------------------------------------------------
 (async () => {
   cfg = await window.api.invoke("settings:get");
@@ -160,6 +180,11 @@ $("#testWatch").addEventListener("click", () => window.api.send("watch:test"));
   bindInputs();
   renderDays(cfg.workDays || []);
   renderExercises(cfg.exercises || []);
+  renderSeg("nudgeStyle", [["notification", "Notification"], ["flash", "Flash"], ["voice", "Voice"], ["silent", "Silent"]]);
+  renderSeg("overlayTheme", [["slate", "Slate"], ["aurora", "Aurora"], ["sunset", "Sunset"], ["forest", "Forest"], ["mono", "Mono"]]);
+  // selecting a buzz strength fires a preview buzz so you feel the intensity
+  renderSeg("watchPriority", [[2, "Gentle"], [3, "Normal"], [4, "Strong"], [5, "Urgent"]],
+    { numeric: true, onPick: () => window.api.send("watch:test") });
   $("#camZoom").value = Math.round((cfg.camZoom || 0) * 100);
   $("#zoomHint").textContent = cfg.camZoom ? Math.round(cfg.camZoom * 100) + "% toward max zoom" : "0 = widest";
   const cams = await window.api.invoke("cameras:get");

@@ -1,5 +1,7 @@
 const border = document.getElementById("border");
 const hud = document.getElementById("hud");
+const cue = document.getElementById("cue");
+const cueText = document.getElementById("cueText");
 let flashTimer = null;
 
 window.api.on("flash:cmd", (cmd) => {
@@ -9,5 +11,8 @@ window.api.on("flash:cmd", (cmd) => {
     flashTimer = setTimeout(() => border.classList.remove("on"), 700);
   } else if (cmd.type === "proximity") {
     hud.classList.toggle("on", !!cmd.on);
+  } else if (cmd.type === "cue") {
+    if (cmd.on && cmd.text) cueText.textContent = cmd.text;
+    cue.classList.toggle("on", !!cmd.on);
   }
 });

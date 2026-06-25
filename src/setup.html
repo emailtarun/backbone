@@ -47,6 +47,11 @@
       footer .spacer { flex: 1; }
       ol { padding-left: 20px; line-height: 1.7; font-size: 14px; }
       .hint { font-size: 12px; opacity: .6; }
+      .tip { display: flex; gap: 11px; padding: 11px 0; font-size: 14px; line-height: 1.45;
+        border-bottom: 1px solid rgba(128,128,128,.14); }
+      .tip:last-child { border-bottom: none; }
+      .tip .ico { flex: none; width: 22px; text-align: center; font-size: 16px; }
+      .h2 { font-size: 15px; font-weight: 600; margin: 18px 2px 2px; }
       select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d2d2d7; }
       .check { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; opacity: .55; }
       .check .mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #c7c7cc; flex: none;
@@ -109,16 +114,12 @@
 
       <section class="step" data-step="2">
         <h1>Calibrate your “good” posture</h1>
-        <p>A live camera window is showing. <b>Sit the way you want to hold yourself</b> —
-          roll your shoulders back, lift your chin, sit tall — until all three turn green, then calibrate.</p>
-        <div class="card">
-          <div class="check" id="chkFrame"><span class="mark"></span> Head &amp; shoulders fully in frame</div>
-          <div class="check" id="chkLevel"><span class="mark"></span> Shoulders level</div>
-          <div class="check" id="chkCenter"><span class="mark"></span> Centered in the frame</div>
-        </div>
-        <div class="steps-cta"><button class="btn coral" id="calibrate" disabled>Calibrate (sit tall)</button></div>
-        <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Position yourself…</span></div>
-        <p class="hint">You can re-calibrate anytime from the menu bar if you move your chair or camera.</p>
+        <p>A <b>live camera window</b> just opened. Get into your best posture — roll your
+          shoulders back, lift your chin, sit tall — until the on-screen guide turns
+          <b>green</b>, then press <b>Calibrate</b> right on that window.</p>
+        <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Waiting for calibration…</span></div>
+        <p class="hint">This continues automatically once you've calibrated. You can re-calibrate
+          anytime from the menu bar.</p>
       </section>
 
       <section class="step" data-step="3">
@@ -156,10 +157,27 @@
       </section>
 
       <section class="step" data-step="5">
+        <h1>How Backbone works</h1>
+        <div class="card">
+          <div class="tip"><span class="ico">🦴</span><div><b>Menu bar</b> — the spine icon shows 🟢 good or 🟡 slouching. Click it to pause, calibrate, take a break, or open stats.</div></div>
+          <div class="tip"><span class="ico">👀</span><div><b>Gentle nudges</b> — slouch for a few seconds and you'll get an on-screen cue telling you exactly what to fix, plus an optional Watch buzz.</div></div>
+          <div class="tip"><span class="ico">🧘</span><div><b>Breaks</b> — quick eye breaks and longer stretch breaks appear on your schedule. Skip or postpone anytime.</div></div>
+          <div class="tip"><span class="ico">📈</span><div><b>Stats</b> — your streak, good-posture %, and trends live in the Stats dashboard.</div></div>
+        </div>
+        <div class="h2">Get the most out of it</div>
+        <div class="card">
+          <div class="tip"><span class="ico">↻</span><div><b>Re-calibrate</b> whenever you change your chair, desk height, or camera.</div></div>
+          <div class="tip"><span class="ico">🎚️</span><div>Too touchy or not enough? Tune <b>Sensitivity</b> in Settings — changes apply live.</div></div>
+          <div class="tip"><span class="ico">📷</span><div>On an iPhone (Continuity Camera), keep <b>Center Stage off</b> for steady tracking.</div></div>
+        </div>
+      </section>
+
+      <section class="step" data-step="6">
         <h1>You're all set 🎉</h1>
         <p>Backbone now lives in your <b>menu bar</b> — click the spine icon anytime to
-          pause, take a break, see stats, or open settings.</p>
-        <p class="muted">Tip: ⌥⌘B starts a stretch break, ⌥⌘P pauses monitoring.</p>
+          pause, take a break, see stats, or open settings. Settings will open next so you
+          can fine-tune everything.</p>
+        <p class="muted">Tip: ⌥⌘B starts a stretch break · ⌥⌘P pauses monitoring · ⌥⌘S snoozes breaks.</p>
       </section>
     </main>
 

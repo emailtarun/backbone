@@ -67,36 +67,26 @@ $("#cameraId").addEventListener("change", (e) => {
 });
 $("#wideFov").addEventListener("change", (e) => window.api.invoke("settings:set", { wideFov: e.target.checked }));
 
-// ---- live positioning + camera status -------------------------------------
-const setCheck = (id, on) => $("#" + id).classList.toggle("on", !!on);
+// ---- live status (the camera window handles calibration itself) -----------
 window.api.on("setup:posture", ({ state, pos }) => {
-  if (state === "no-person") {
+  if (state === "no-person")
     setStatus("camStatus", "camText", "warn", "Camera on — but I can't see you. Sit in frame.");
-    ["chkFrame", "chkLevel", "chkCenter"].forEach((c) => setCheck(c, false));
-  } else {
-    setStatus("camStatus", "camText", "ok", "Camera on — I can see you ✓");
-  }
-  if (pos) {
-    setCheck("chkFrame", pos.inFrame);
-    setCheck("chkLevel", pos.level);
-    setCheck("chkCenter", pos.centered);
-    if (!calibrated) {
-      $("#calibrate").disabled = !pos.ready;
-      setStatus("calStatus", "calText", pos.ready ? "ok" : "warn",
-        pos.ready ? "Looking good — sit tall and calibrate" : "Adjust until all three are green");
-    }
+  else setStatus("camStatus", "camText", "ok", "Camera on — I can see you ✓");
+  if (pos && !calibrated) {
+    const msg = pos.ready
+      ? "In position — press Calibrate on the camera window"
+      : !pos.inFrame
+      ? "Fill the camera guide with your head & shoulders"
+      : !pos.level
+      ? "Level your shoulders"
+      : "Center yourself in the frame";
+    setStatus("calStatus", "calText", pos.ready ? "ok" : "warn", msg);
   }
 });
 
-// ---- calibrate ------------------------------------------------------------
-$("#calibrate").addEventListener("click", () => {
-  setStatus("calStatus", "calText", "warn", "Hold still, sitting tall…");
-  window.api.send("setup:calibrate");
-});
 window.api.on("setup:calibrated", () => {
   calibrated = true;
-  $("#calibrate").disabled = true;
-  setStatus("calStatus", "calText", "ok", "Calibrated ✓ — baseline set. Moving on…");
+  setStatus("calStatus", "calText", "ok", "Calibrated ✓ — moving on…");
   if (i === 2) {
     $("#next").disabled = false;
     setTimeout(() => { if (i === 2) show(3); }, 1500); // auto-advance + closes the camera

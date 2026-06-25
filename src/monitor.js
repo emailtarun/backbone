@@ -6,11 +6,26 @@ import {
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-const bodyEl = document.body;
-const stateEl = document.getElementById("state");
-const scoreEl = document.getElementById("score");
-const msgEl = document.getElementById("msg");
-const fillEl = document.getElementById("fill");
+const chip = document.getElementById("chip");
+const chipText = document.getElementById("chipText");
+const cueEl = document.getElementById("cue");
+const subEl = document.getElementById("sub");
+const guide = document.getElementById("guide");
+const calBtn = document.getElementById("calBtn");
+const chk = { inFrame: document.getElementById("cFrame"), level: document.getElementById("cLevel"), centered: document.getElementById("cCenter") };
+
+calBtn.addEventListener("click", () => {
+  if (baseline) { calBtn.disabled = true; setTimeout(() => (calBtn.disabled = false), 3000); }
+  calibrateRequest = true;
+});
+
+function setChecks(pos) {
+  chk.inFrame.classList.toggle("on", !!pos.inFrame);
+  chk.level.classList.toggle("on", !!pos.level);
+  chk.centered.classList.toggle("on", !!pos.centered);
+  guide.classList.toggle("ready", !!pos.ready);
+  if (!baseline) calBtn.disabled = !pos.ready;
+}
 
 // MediaPipe BlazePose landmark indices.
 const NOSE = 0, L_EYE = 2, R_EYE = 5, L_EAR = 7, R_EAR = 8, L_SH = 11, R_SH = 12;
@@ -82,16 +97,11 @@ function badness(f) {
   return Math.min(100, raw);
 }
 
+// cls: 'good' | 'bad' | 'none'  ·  label = chip text  ·  hint = big cue line
 function setState(cls, label, score, hint) {
-  bodyEl.className = cls;
-  stateEl.textContent = label;
-  scoreEl.textContent = score == null ? "" : `score ${Math.round(score)}`;
-  if (hint !== undefined) msgEl.textContent = hint;
-  if (score != null) {
-    const pct = Math.min(100, score);
-    fillEl.style.width = pct + "%";
-    fillEl.style.background = cls === "bad" ? "#ffcc00" : cls === "good" ? "#34c759" : "#666";
-  }
+  chip.className = cls === "bad" ? "bad" : cls === "good" ? "good" : "warn";
+  chipText.textContent = label;
+  if (hint !== undefined && hint !== null) cueEl.textContent = hint;
 }
 
 function drawSkeleton(lm) {
@@ -242,20 +252,25 @@ function loop() {
   }
   if (calibrating && raw) {
     calibrating.samples.push(raw);
-    setState("none", "calibrating…", null, "Hold still, sitting tall…");
+    setState("none", "calibrating…", null, "Hold still — sitting tall…");
+    subEl.textContent = "Capturing your baseline";
     if (Date.now() >= calibrating.until && calibrating.samples.length >= 8) {
       const s = calibrating.samples;
       baseline = {};
       for (const k of FEAT_KEYS) baseline[k] = median(s.map((x) => x[k]));
       calibrating = null; feat = null; badState = false;
-      window.api.send("monitor:calibrated", true);
+      document.body.classList.add("calibrated");
+      calBtn.textContent = "Re-calibrate"; calBtn.disabled = false;
+      setState("good", "calibrated", null, "Calibrated ✓");
+      subEl.textContent = "I'll watch your posture from here";
+      window.api.send("monitor:calibrated", baseline); // persisted by main
     }
     return;
   }
 
   if (!raw) {
-    setState("none", "no person", null,
-      baseline ? "" : "Calibrate from the menu while sitting upright.");
+    setState("none", "no person", null, baseline ? "Step into view" : "Sit in front of the camera");
+    subEl.textContent = "";
     feat = null;
     throttleSend({ state: "no-person", score: 0 });
     return;
@@ -264,13 +279,15 @@ function loop() {
   if (!baseline) {
     const pos = positioningFrom(lm);
     const cue = !pos.inFrame
-      ? "Sit back so your head & shoulders are fully in view"
+      ? "Move so your head & shoulders fill the guide"
       : !pos.level
-      ? "Level your shoulders — sit evenly"
+      ? "Level your shoulders"
       : !pos.centered
       ? "Center yourself in the frame"
-      : "Looking good — roll shoulders back, chin up, sit tall, then calibrate";
-    setState(pos.ready ? "good" : "none", pos.ready ? "ready to calibrate" : "position yourself", null, cue);
+      : "Looking good — sit tall, then Calibrate";
+    setState(pos.ready ? "good" : "none", pos.ready ? "ready" : "position yourself", null, cue);
+    subEl.textContent = pos.ready ? "Roll shoulders back · chin up · sit tall" : "Fill the dashed guide";
+    setChecks(pos);
     throttleSend({ state: "uncalibrated", score: 0, pos });
     return;
   }
@@ -283,10 +300,12 @@ function loop() {
   if (badState && score < T * 0.6) badState = false;
   else if (!badState && score > T) badState = true;
 
+  const cue = badState ? cueFor(f) : null;
   const proximity = Math.max(0, Math.min(100, (f.sw / baseline.sw - 1) * 300));
-  setState(badState ? "bad" : "good", badState ? "slouching" : "good posture", score,
-    badState ? cueFor(f) : "Nice — keep it up.");
-  throttleSend({ state: badState ? "bad" : "good", score, proximity });
+  setState(badState ? "bad" : "good", badState ? "fix your posture" : "good posture", score,
+    badState ? cue : "Nice — keep it up");
+  subEl.textContent = badState ? "" : "";
+  throttleSend({ state: badState ? "bad" : "good", score, proximity, cue });
 }
 
 // Pick the dominant fault so the on-screen cue is specific, not generic.
@@ -328,6 +347,16 @@ window.api.on("monitor:setPaused", (p) => {
 });
 window.api.on("monitor:calibrate", () => {
   calibrateRequest = true;
+});
+// restore a saved baseline from a previous session
+window.api.on("monitor:baseline", (b) => {
+  if (!b || baseline) return;
+  baseline = b;
+  feat = null;
+  badState = false;
+  document.body.classList.add("calibrated");
+  calBtn.textContent = "Re-calibrate";
+  calBtn.disabled = false;
 });
 
 // ---- sound / voice (this hidden window is our audio sink) -----------------

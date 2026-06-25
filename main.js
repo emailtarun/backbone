@@ -69,6 +69,7 @@ const store = new Store({
     launchAtLogin: false,
     startMonitoringOnLaunch: true,
     setupComplete: false,
+    baseline: null, // persisted posture calibration (survives restarts)
     cameraId: "", // "" = system default camera
     wideFov: true, // widest field of view (min zoom) for best framing
     camZoom: 0, // manual zoom 0..1 (0 = widest); used when wideFov is off
@@ -269,7 +270,8 @@ function updateTray() {
 // Windows
 // ---------------------------------------------------------------------------
 const WINDEFS = {
-  monitor: { file: "monitor.html", opts: { width: 420, height: 380, show: false, skipTaskbar: true,
+  monitor: { file: "monitor.html", opts: { width: 480, height: 562, show: false, skipTaskbar: true,
+    resizable: false, title: "Backbone — Camera",
     webPreferences: { backgroundThrottling: false, webSecurity: false } } },
   settings: { file: "settings.html", opts: { width: 480, height: 720, resizable: true } },
   setup: { file: "setup.html", opts: { width: 560, height: 640, resizable: false, center: true, title: "Welcome to Backbone" } },
@@ -392,6 +394,12 @@ function onPostureUpdate(p) {
     badSince = null;
     stats.sample("good");
   }
+
+  // On-screen "what to fix" overlay — show the specific cue once a slouch has
+  // held briefly (avoids flicker on momentary movement), hide when good.
+  const showCue = postureState === "bad" && p.cue && Date.now() - (badSince || Date.now()) > 1500;
+  flashCmd({ type: "cue", on: !!showCue, text: p.cue || "" });
+
   updateTray();
 }
 
@@ -425,7 +433,7 @@ function maybeNudge() {
 // ---------------------------------------------------------------------------
 function flashCmd(cmd) {
   // don't spin up the overlay just to turn an alert off
-  if (cmd.type === "proximity" && !cmd.on && (!wins.flash || wins.flash.isDestroyed())) return;
+  if ((cmd.type === "proximity" || cmd.type === "cue") && !cmd.on && (!wins.flash || wins.flash.isDestroyed())) return;
   const w = getWin("flash");
   const send = () => { sizeToCursorDisplay(w); elevate(w); w.showInactive(); w.setIgnoreMouseEvents(true); w.webContents.send("flash:cmd", cmd); };
   if (w.webContents.isLoading()) w.webContents.once("did-finish-load", send);
@@ -634,11 +642,14 @@ function notify(title, body, silent) {
 ipcMain.on("posture:update", (_e, p) => onPostureUpdate(p));
 ipcMain.on("monitor:ready", () => {
   pushConfig();
+  const b = store.get("baseline"); // restore saved calibration (not during first-run setup)
+  if (b && wins.monitor && store.get("setupComplete")) wins.monitor.webContents.send("monitor:baseline", b);
   // During first-run onboarding the wizard drives monitoring; don't auto-start.
   if (store.get("startMonitoringOnLaunch") && store.get("setupComplete")) setMonitoring(true);
 });
 ipcMain.on("monitor:error", (_e, msg) => notify("Backbone — camera error", String(msg)));
-ipcMain.on("monitor:calibrated", () => {
+ipcMain.on("monitor:calibrated", (_e, baseline) => {
+  if (baseline && typeof baseline === "object") store.set("baseline", baseline);
   notify("Calibrated ✅", "Baseline captured.", true);
   sendSetup("setup:calibrated");
 });
