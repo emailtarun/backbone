@@ -107,6 +107,25 @@ npm run dist:win    # -> dist/  NSIS .exe installer
   the `.exe` from macOS needs Wine; a Windows runner or GitHub Actions matrix is
   the clean path.
 
+## Auto-update
+
+The installed app uses [`electron-updater`](https://www.electron.build/auto-update)
+against GitHub Releases. On launch and every 6 hours it checks for a newer
+release, downloads it in the background, and installs on restart (or via the
+tray "Restart to update" entry). Requires the repo to be **public** so releases
+are downloadable.
+
+To ship an update:
+
+```bash
+npm run release    # bumps patch version, tags vX.Y.Z, pushes the tag
+```
+
+The tag push triggers CI to build and **publish a GitHub Release** (installers +
+`latest.yml` / `latest-mac.yml`). Installed copies pick it up automatically.
+Updater logic lives in `initAutoUpdate()` in `main.js`; it's skipped in dev
+(`app.isPackaged` guard).
+
 ### Branding / icons
 
 The Backbone spine icon is generated procedurally — `npm run make-icons` writes
