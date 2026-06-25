@@ -51,6 +51,10 @@
     "mac": {
       "category": "public.app-category.healthcare-fitness",
       "icon": "build/icon.icns",
+      "identity": "Tarunbir Brar (NRV5HN2Y4B)",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
         "dmg",
         "zip"

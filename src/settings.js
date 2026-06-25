@@ -152,6 +152,31 @@ function renderSeg(key, options, opts = {}) {
   });
 }
 
+// ---- break overlay theme picker with live preview ------------------------
+const THEMES = [["slate", "Slate"], ["aurora", "Aurora"], ["sunset", "Sunset"], ["forest", "Forest"], ["mono", "Mono"]];
+function updateThemePreview(theme) {
+  $("#themePreview").className = "theme-preview th-" + theme;
+}
+function renderThemePicker() {
+  const box = $("#themePicker");
+  if (!box) return;
+  box.innerHTML = "";
+  THEMES.forEach(([val, label]) => {
+    const b = document.createElement("button");
+    b.className = "th-" + val + (String(cfg.overlayTheme) === val ? " on" : "");
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      [...box.children].forEach((c) => c.classList.remove("on"));
+      b.classList.add("on");
+      cfg.overlayTheme = val;
+      save({ overlayTheme: val });
+      updateThemePreview(val);
+    });
+    box.appendChild(b);
+  });
+  updateThemePreview(cfg.overlayTheme || "slate");
+}
+
 // ---- init -----------------------------------------------------------------
 (async () => {
   cfg = await window.api.invoke("settings:get");
@@ -160,7 +185,7 @@ function renderSeg(key, options, opts = {}) {
   renderDays(cfg.workDays || []);
   renderLibrary();
   renderSeg("nudgeStyle", [["notification", "Notification"], ["flash", "Flash"], ["voice", "Voice"], ["silent", "Silent"]]);
-  renderSeg("overlayTheme", [["slate", "Slate"], ["aurora", "Aurora"], ["sunset", "Sunset"], ["forest", "Forest"], ["mono", "Mono"]]);
+  renderThemePicker();
   // selecting a buzz strength fires a preview buzz so you feel the intensity
   renderSeg("watchPriority", [[2, "Gentle"], [3, "Normal"], [4, "Strong"], [5, "Urgent"]],
     { numeric: true, onPick: () => window.api.send("watch:test") });

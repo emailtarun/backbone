@@ -9,6 +9,18 @@ const http = require("http");
 const zlib = require("zlib");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
+
+// In-progress dev build (npm start): use a separate name + data folder so it
+// never touches the installed app's settings/calibration. MUST run before any
+// Store is created (i.e. before requiring ./lib/stats below).
+const IS_DEV = !app.isPackaged;
+if (IS_DEV) {
+  try {
+    app.setName("Backbone (Dev)");
+    app.setPath("userData", path.join(app.getPath("appData"), "Backbone (Dev)"));
+  } catch (_) {}
+}
+
 const stats = require("./lib/stats");
 const sched = require("./lib/schedule");
 
@@ -31,6 +43,8 @@ const STRETCH_LIBRARY = [
     cue: "One arm reaches forward, the other draws back like pulling a bowstring — open the chest as you pull." },
   { id: "open-book", name: "Open book", area: "upperback", anim: "openbook", mode: "time", seconds: 45,
     cue: "Arms out front, palms together. Sweep the top arm open like a book and follow it with your eyes. Alternate sides." },
+  { id: "desk-angels", name: "Desk angels", area: "upperback", anim: "deskangel", mode: "time", seconds: 40,
+    cue: "Sit tall. Make a goal-post “W” with your arms, backs of the hands toward the wall behind you. Slowly slide them up to a “Y” and back down, squeezing your shoulder blades the whole time." },
   { id: "spinal-twist", name: "Seated spinal twist", area: "upperback", anim: "twist", mode: "side", perSideSec: 20,
     cue: "Hand to the opposite knee and twist gently from the waist. Lengthen up as you turn." },
   { id: "chest-opener", name: "Chest opener", area: "chest", anim: "chestopen", mode: "time", seconds: 30,
@@ -189,7 +203,6 @@ let warnShownFor = null; // 'micro' | 'long' | null
 let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
 let checkingUpdate = false;
-let lastMenuSig = null; // dedupe tray menu rebuilds (rebuilding closes an open menu)
 let lastTallyAt = 0; // throttle posture-fault tallying
 let proximityOn = false; // "lean back" HUD state (hysteresis)
 
@@ -280,7 +293,26 @@ function fmtMin(sec) {
   return m <= 0 ? "<1 min" : `${m} min`;
 }
 
-function rebuildMenu() {
+// macOS-reliable approach: keep a context menu set (so clicks open it natively
+// and it stays open), but only RE-SET it when something other than the volatile
+// posture state changes — so a good/bad flicker as the user reaches to click can
+// never rebuild the menu out from under them (which made it "disappear").
+let lastMenuKey = null;
+function menuKey() {
+  let nb = "off";
+  if ((store.get("microEnabled") || store.get("longEnabled")) && !clockedOut) {
+    nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}`;
+    if (snoozeUntil > Date.now()) nb = "snooze";
+  }
+  return [monitoring, clockedOut, updateReady, updateVersion, nb].join("~");
+}
+function refreshMenu() {
+  if (!tray) return;
+  lastMenuKey = menuKey();
+  tray.setContextMenu(buildMenu());
+}
+
+function buildMenu() {
   const breaksOn = store.get("microEnabled") || store.get("longEnabled");
   let nextBreak = "Breaks off";
   if (breaksOn && !clockedOut) {
@@ -296,41 +328,34 @@ function rebuildMenu() {
     ? `Posture: ${postureState === "bad" ? "slouching" : postureState}`
     : "Posture: paused";
 
-  // Only rebuild the menu when its visible text changes — rebuilding while the
-  // menu is open closes it, which made it "disappear" on click.
-  const sig = [statusLabel, nextBreak, monitoring, clockedOut, updateReady, updateVersion].join("|");
-  if (sig === lastMenuSig) return;
-  lastMenuSig = sig;
-
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: statusLabel, enabled: false },
-      { label: nextBreak, enabled: false },
-      { type: "separator" },
-      { label: monitoring ? "Pause monitoring" : "Resume monitoring", click: () => setMonitoring(!monitoring) },
-      { label: "Calibrate posture (sit up straight)", enabled: monitoring, click: calibrate },
-      { label: "Show camera / posture view", click: () => showWin("monitor") },
-      { type: "separator" },
-      { label: `Take long break now  ${MOD}B`, click: () => startBreak("long", true) },
-      { label: "Take micro break now", click: () => startBreak("micro", true) },
-      { label: "Snooze breaks 15 min", click: () => snooze(15) },
-      { label: "Reset break timers", click: resetBreakTimers },
-      { type: "separator" },
-      { label: "Stats dashboard…", click: () => showWin("dashboard") },
-      { label: "Settings…", click: () => showWin("settings") },
-      { type: "separator" },
-      {
-        label: updateReady ? `Restart to update → v${updateVersion}` : "Check for updates…",
-        click: checkForUpdatesManual,
-      },
-      { type: "separator" },
-      {
-        label: clockedOut ? "Clock back in" : "Clock out for the day",
-        click: () => { clockedOut = !clockedOut; clockedOutDay = sched.todayKey(); updateTray(); },
-      },
-      { label: "Quit", click: () => app.quit() },
-    ])
-  );
+  return Menu.buildFromTemplate([
+    { label: statusLabel, enabled: false },
+    { label: nextBreak, enabled: false },
+    { type: "separator" },
+    { label: monitoring ? "Pause monitoring" : "Resume monitoring", click: () => setMonitoring(!monitoring) },
+    { label: "Calibrate posture (sit up straight)", enabled: monitoring, click: calibrate },
+    { label: "Show camera / posture view", click: () => showWin("monitor") },
+    { type: "separator" },
+    { label: `Take long break now  ${MOD}B`, click: () => startBreak("long", true) },
+    { label: "Take micro break now", click: () => startBreak("micro", true) },
+    { label: "Snooze breaks 15 min", click: () => snooze(15) },
+    { label: "Reset break timers", click: resetBreakTimers },
+    { type: "separator" },
+    { label: "Stats dashboard…", click: () => showWin("dashboard") },
+    { label: "Settings…", click: () => showWin("settings") },
+    { label: "Run setup again…", click: () => { store.set("setupComplete", false); showWin("setup"); } },
+    { type: "separator" },
+    {
+      label: updateReady ? `Restart to update → v${updateVersion}` : "Check for updates…",
+      click: checkForUpdatesManual,
+    },
+    { type: "separator" },
+    {
+      label: clockedOut ? "Clock back in" : "Clock out for the day",
+      click: () => { clockedOut = !clockedOut; clockedOutDay = sched.todayKey(); updateTray(); refreshMenu(); },
+    },
+    { label: "Quit", click: () => app.quit() },
+  ]);
 }
 
 function updateTray() {
@@ -343,8 +368,8 @@ function updateTray() {
     // Windows/Linux have no tray title — convey status via a colored dot icon
     tray.setImage(makeStatusIcon(statusKey));
   }
-  tray.setToolTip(`Backbone — ${clockedOut ? "clocked out" : monitoring ? postureState : "paused"}`);
-  rebuildMenu();
+  tray.setToolTip(`${IS_DEV ? "Backbone (Dev)" : "Backbone"} — ${clockedOut ? "clocked out" : monitoring ? postureState : "paused"}`);
+  // NB: no menu rebuild here — the menu is built on click via buildMenu().
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +455,7 @@ function setMonitoring(on) {
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
   updateTray();
+  refreshMenu();
 }
 
 function calibrate() {
@@ -688,8 +714,9 @@ function tick() {
     else if (working && !monitoring && store.get("startMonitoringOnLaunch") && !clockedOut) setMonitoring(true);
   }
 
-  // keep the tray break countdown fresh roughly every 5s
-  if (Math.floor(Date.now() / 1000) % 5 === 0) updateTray();
+  // Re-set the menu only when its non-posture content changes (≈ once a minute
+  // as the break countdown ticks) — never on a posture flicker.
+  if (menuKey() !== lastMenuKey) refreshMenu();
 }
 
 // ---------------------------------------------------------------------------
@@ -756,8 +783,10 @@ ipcMain.on("monitor:ready", () => {
 ipcMain.on("monitor:error", (_e, msg) => notify("Backbone — camera error", String(msg)));
 ipcMain.on("monitor:calibrated", (_e, baseline) => {
   if (baseline && typeof baseline === "object") store.set("baseline", baseline);
-  notify("Calibrated ✅", "Baseline captured.", true);
+  notify("Calibration complete ✅", "Your posture baseline is set.", true);
   sendSetup("setup:calibrated");
+  // Let "Calibration complete ✓" show briefly, then close the camera view.
+  setTimeout(() => { if (wins.monitor && !wins.monitor.isDestroyed()) wins.monitor.hide(); }, 1700);
 });
 
 ipcMain.on("overlay:done", (_e, { kind, skipped }) => endBreak(kind, skipped));
@@ -840,7 +869,7 @@ ipcMain.on("watch:test", (e) => {
     force: true,
     onResult: (ok, detail) => {
       if (ok)
-        notify("Test buzz sent ✓", "Check your phone & Watch. No buzz? Open the ntfy app and confirm you subscribed to your exact topic.", true);
+        notify("Test buzz sent ✓", "Check your phone & watch. No buzz? Open the ntfy app and confirm you subscribed to your exact topic.", true);
       else notify("Test buzz didn't send", detail || "Couldn't reach ntfy.", true);
       if (sender && !sender.isDestroyed()) sender.send("watch:testResult", { ok, detail });
     },
@@ -920,6 +949,11 @@ function checkForUpdatesManual() {
 // Lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(async () => {
+  // Only one copy of this app may run (prevents a second instance fighting over
+  // the camera / global shortcuts). A duplicate launch just exits.
+  if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+  app.on("second-instance", () => { if (wins.settings && !wins.settings.isDestroyed()) wins.settings.show(); });
+
   // Grant the webcam request from our own renderer (required on Windows/Linux,
   // harmless on macOS where the OS prompt still governs access).
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === "media"));
@@ -927,6 +961,8 @@ app.whenReady().then(async () => {
   if (app.dock) app.dock.hide();
 
   tray = new Tray(makeTrayIcon());
+  // Build the menu on demand so background updates can't close it mid-click.
+  refreshMenu(); // set the menu once; macOS opens it natively on click
   resetBreakTimers();
   updateTray();
   makeWin("monitor");

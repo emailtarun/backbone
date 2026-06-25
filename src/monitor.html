@@ -9,7 +9,9 @@
       body { margin: 0; width: 480px; font-family: -apple-system, system-ui, sans-serif;
         background: #0d0f14; color: #fff; overflow: hidden; user-select: none; }
       #cam { position: relative; width: 480px; height: 360px; background: #000; overflow: hidden; }
-      video { display: none; }
+      /* Kept in the render tree (not display:none) so Chromium decodes frames,
+         but invisible — the canvas shows the feed. */
+      video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
       canvas { width: 480px; height: 360px; display: block; }
       /* head + shoulders framing guide */
       #guide { position: absolute; left: 50%; top: 49%; transform: translate(-50%, -50%);

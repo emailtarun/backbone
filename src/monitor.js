@@ -82,20 +82,30 @@ function median(arr) {
 
 // Multi-factor posture badness (0..100) vs the calibrated baseline. Small
 // deadzones absorb natural movement; sums so several mild faults still add up.
+// Weights are tuned per camera position stored in the baseline.
 function badness(f) {
   if (!baseline) return 0;
   const b = baseline;
-  // Balanced deadzones: normal sitting + small fidgets stay ~0 (green), but a
-  // clear recline / slouch / forward-head crosses the threshold.
+
   const sink = Math.max(0, (b.neck - f.neck) / Math.max(0.05, b.neck) - 0.05); // head sinking
   const down = Math.max(0, f.noseDrop - b.noseDrop - 0.04);                     // looking down
-  const distBad = Math.max(0, (Math.abs(f.sw / b.sw - 1) + Math.abs(f.eye / b.eye - 1)) / 2 - 0.05); // leaned in / back
-  const vDrop = Math.max(0, f.shY - b.shY - 0.025) + Math.max(0, f.headY - b.headY - 0.025);          // slumped down
+  const distBad = Math.max(0, (Math.abs(f.sw / b.sw - 1) + Math.abs(f.eye / b.eye - 1)) / 2 - 0.05); // leaned in/back
+  const vDrop = Math.max(0, f.shY - b.shY - 0.025) + Math.max(0, f.headY - b.headY - 0.025);
   const zFwd = Math.max(0, b.fwdZ - f.fwdZ), zBack = Math.max(0, f.fwdZ - b.fwdZ);
-  const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.6 - 0.04);                    // forward head / recline
+  const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.6 - 0.04);
+
+  // Tilt: off-centre cameras introduce lateral perspective so one shoulder always
+  // appears lower. The baseline absorbs this bias, but residual noise is higher —
+  // halve the tilt weight to avoid false positives.
+  const tiltW = b.cameraOffCentre ? 55 : 110;
   const tilt = Math.max(0, Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt) - 0.045);
+
+  // From a below-eye camera, slumping down is very visible (large vDrop signal)
+  // but noseDrop is harder to read — reduce its contribution slightly.
+  const downW = b.cameraBelow ? 160 : 220;
+
   const raw =
-    sink * 100 + down * 220 + distBad * 175 + vDrop * 280 + zBad * 185 + tilt * 110;
+    sink * 100 + down * downW + distBad * 175 + vDrop * 280 + zBad * 185 + tilt * tiltW;
   return Math.min(100, raw);
 }
 
@@ -135,6 +145,7 @@ let lastSent = 0;
 let currentStream = null;
 let videoTrack = null;
 let cameraStarted = false;
+let noFrameWatch = null; // watchdog: detect a stream with no actual frames
 
 // (Re)open the webcam using the configured device, at the widest field of view
 // we can get — high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
@@ -142,16 +153,44 @@ async function startCamera() {
   setState("none", "switching camera…", null, "");
   if (currentStream) { currentStream.getTracks().forEach((t) => t.stop()); currentStream = null; }
   const v = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
-  if (config.cameraId) v.deviceId = { exact: config.cameraId };
-  else v.facingMode = "user";
-  const stream = await navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+  if (config.cameraId) {
+    v.deviceId = { exact: config.cameraId }; // explicit choice (e.g. iPhone) is honored
+  } else {
+    // No explicit choice: prefer a built-in camera. iPhone/Continuity defaults
+    // often hang (asleep / not nearby); the built-in is always responsive.
+    try {
+      const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+      // Prefer a labelled built-in; otherwise the FIRST enumerated camera (which
+      // is the built-in on Macs) — never fall through to the Continuity default.
+      const builtin = cams.find((d) => /facetime|built-?in|macbook|imac/i.test(d.label)) || cams[0];
+      if (builtin && builtin.deviceId) v.deviceId = { exact: builtin.deviceId };
+      else v.facingMode = "user";
+    } catch (_) { v.facingMode = "user"; }
+  }
+  // Timeout so an unresponsive camera surfaces an error instead of hanging forever.
+  const stream = await Promise.race([
+    navigator.mediaDevices.getUserMedia({ video: v, audio: false }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error("Camera didn't respond — pick a different camera in Settings.")), 8000)),
+  ]);
   currentStream = stream;
   videoTrack = stream.getVideoTracks()[0];
   video.srcObject = stream;
-  await video.play();
+  video.muted = true;
+  // Do NOT await play(): on a hidden <video> Chromium can leave the play()
+  // promise pending forever. Frames still flow; the loop waits on readyState.
+  video.play().catch(() => {});
   cameraStarted = true;
   await applyFov();
   reportCameras();
+  // If no frames arrive (camera temporarily contended), quietly retry — it
+  // self-heals as soon as the camera is free. No warning, no manual relaunch.
+  clearTimeout(noFrameWatch);
+  noFrameWatch = setTimeout(() => {
+    if (video.readyState < 2) {
+      setState("none", "connecting camera…", null, "");
+      startCamera().catch(() => {});
+    }
+  }, 4000);
 }
 
 // Push the lens to its widest: minimum zoom = maximum field of view.
@@ -213,6 +252,8 @@ async function init() {
 }
 
 // Live positioning check used during calibration coaching.
+// Thresholds are deliberately loose so off-centre and desk-height cameras
+// can still calibrate — the baseline absorbs the geometric bias.
 function positioningFrom(lm) {
   const ls = lm[L_SH], rs = lm[R_SH], le = lm[L_EAR], re = lm[R_EAR], nose = lm[NOSE];
   const pts = [ls, rs, le, re, nose];
@@ -220,15 +261,23 @@ function positioningFrom(lm) {
   const within = (p) => p.x > 0.04 && p.x < 0.96 && p.y > 0.04 && p.y < 0.96;
   const inFrame = vis && pts.every(within);
   const sw = Math.hypot(ls.x - rs.x, ls.y - rs.y) || 1;
-  const level = Math.abs(ls.y - rs.y) / sw < 0.1;
   const midx = (ls.x + rs.x) / 2;
-  const centered = midx > 0.34 && midx < 0.66;
-  return { inFrame, level, centered, ready: inFrame && level && centered };
+  // Wide threshold: off-centre cameras make shoulders appear tilted by perspective
+  const level = Math.abs(ls.y - rs.y) / sw < 0.28;
+  // Wide range: laptop to the left or right of the monitor is totally fine
+  const centered = midx > 0.12 && midx < 0.88;
+  // Camera-position hints (informational, stored in baseline)
+  const earMidY = (le.y + re.y) / 2;
+  const cameraBelow = nose.y < earMidY;        // nose appears above ears → camera looks up
+  const cameraOffCentre = Math.abs(midx - 0.5) > 0.16;
+  return { inFrame, level, centered, ready: inFrame && level && centered,
+           cameraBelow, cameraOffCentre, midx };
 }
 
 function loop() {
   requestAnimationFrame(loop);
   if (!landmarker || video.readyState < 2) return;
+  if (noFrameWatch) { clearTimeout(noFrameWatch); noFrameWatch = null; console.log("[cam] live"); } // frames flowing
 
   const now = performance.now();
   let result;
@@ -250,22 +299,41 @@ function loop() {
   // calibration capture (median of raw samples = robust baseline)
   if (calibrateRequest && raw) {
     calibrateRequest = false;
-    calibrating = { samples: [], until: Date.now() + 2500 };
+    calibrating = { samples: [], camSamples: [], until: Date.now() + 2500 };
   }
   if (calibrating && raw) {
     calibrating.samples.push(raw);
+    // Track raw landmark positions to detect camera geometry
+    calibrating.camSamples.push({
+      noseY: lm[NOSE].y,
+      earMidY: (lm[L_EAR].y + lm[R_EAR].y) / 2,
+      midx: (lm[L_SH].x + lm[R_SH].x) / 2,
+      shTiltAbs: Math.abs(lm[L_SH].y - lm[R_SH].y) /
+                 (Math.hypot(lm[L_SH].x - lm[R_SH].x, lm[L_SH].y - lm[R_SH].y) || 1),
+    });
     setState("none", "calibrating…", null, "Hold still — sitting tall…");
     subEl.textContent = "Capturing your baseline";
     if (Date.now() >= calibrating.until && calibrating.samples.length >= 8) {
       const s = calibrating.samples;
       baseline = {};
       for (const k of FEAT_KEYS) baseline[k] = median(s.map((x) => x[k]));
+      // Store camera-position metadata so scoring can compensate
+      const cs = calibrating.camSamples;
+      const medNoseY  = median(cs.map((c) => c.noseY));
+      const medEarY   = median(cs.map((c) => c.earMidY));
+      const medMidx   = median(cs.map((c) => c.midx));
+      const medShTilt = median(cs.map((c) => c.shTiltAbs));
+      baseline.cameraBelow     = medNoseY < medEarY;          // camera looks up at user
+      baseline.cameraOffCentre = Math.abs(medMidx - 0.5) > 0.16; // laptop to one side
+      baseline.cameraShTilt    = medShTilt;                   // perspective tilt at calibration
       calibrating = null; feat = null; badState = false;
       document.body.classList.add("calibrated");
       calBtn.textContent = "Re-calibrate"; calBtn.disabled = false;
-      setState("good", "calibrated", null, "Calibrated ✓");
-      subEl.textContent = "I'll watch your posture from here";
-      window.api.send("monitor:calibrated", baseline); // persisted by main
+      setState("good", "done", null, "Calibration complete ✓");
+      subEl.textContent =
+        (baseline.cameraBelow ? "Low camera detected · " : baseline.cameraOffCentre ? "Side camera detected · " : "") +
+        "closing camera…";
+      window.api.send("monitor:calibrated", baseline); // persisted by main; main closes the window
     }
     return;
   }
@@ -283,12 +351,23 @@ function loop() {
     const cue = !pos.inFrame
       ? "Move so your head & shoulders fill the guide"
       : !pos.level
-      ? "Level your shoulders"
+      ? "Even your shoulders up — or reposition your camera if it's very far to one side"
       : !pos.centered
-      ? "Center yourself in the frame"
+      ? "Move a little more in front of your camera"
+      : pos.cameraBelow
+      ? "Camera is below eye level — sit tall, look straight ahead, then Calibrate"
+      : pos.cameraOffCentre
+      ? "Camera is off to one side — that's fine, face your screen normally, then Calibrate"
       : "Looking good — sit tall, then Calibrate";
+    const sub = !pos.ready
+      ? "Fill the dashed guide"
+      : pos.cameraBelow
+      ? "Low camera detected — works great, just calibrate upright"
+      : pos.cameraOffCentre
+      ? "Side camera detected — works great, just sit facing your screen"
+      : "Roll shoulders back · chin up · sit tall";
     setState(pos.ready ? "good" : "none", pos.ready ? "ready" : "position yourself", null, cue);
-    subEl.textContent = pos.ready ? "Roll shoulders back · chin up · sit tall" : "Fill the dashed guide";
+    subEl.textContent = sub;
     setChecks(pos);
     throttleSend({ state: "uncalibrated", score: 0, pos });
     return;

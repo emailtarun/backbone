@@ -29,10 +29,11 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      # On a version tag -> publish a GitHub Release (the auto-update feed).
-      # On a normal push -> just build, no publish.
+      # On a version tag, CI publishes ONLY the Windows build. The macOS build is
+      # signed + notarized + published locally via `npm run ship`, so CI must not
+      # publish an unsigned mac build that would clobber it (and break auto-update).
       - name: Build
-        run: npx electron-builder ${{ matrix.platform }} --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+        run: npx electron-builder ${{ matrix.platform }} --publish ${{ (startsWith(github.ref, 'refs/tags/v') && matrix.platform == '--win') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
