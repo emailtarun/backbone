@@ -106,6 +106,51 @@ function drawSkeleton(lm) {
 // ---- main loop ------------------------------------------------------------
 let landmarker = null;
 let lastSent = 0;
+let currentStream = null;
+let videoTrack = null;
+let cameraStarted = false;
+
+// (Re)open the webcam using the configured device, at the widest field of view
+// we can get — high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
+async function startCamera() {
+  if (currentStream) { currentStream.getTracks().forEach((t) => t.stop()); currentStream = null; }
+  const v = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+  if (config.cameraId) v.deviceId = { exact: config.cameraId };
+  else v.facingMode = "user";
+  const stream = await navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+  currentStream = stream;
+  videoTrack = stream.getVideoTracks()[0];
+  video.srcObject = stream;
+  await video.play();
+  cameraStarted = true;
+  await applyFov();
+  reportCameras();
+}
+
+// Push the lens to its widest: minimum zoom = maximum field of view.
+async function applyFov() {
+  if (!videoTrack || !videoTrack.getCapabilities) return;
+  try {
+    const caps = videoTrack.getCapabilities();
+    const adv = [];
+    if (config.wideFov !== false && caps.zoom && typeof caps.zoom.min === "number")
+      adv.push({ zoom: caps.zoom.min }); // minimum zoom = widest field of view
+    if (caps.width && caps.width.max && caps.height && caps.height.max)
+      adv.push({ width: caps.width.max, height: caps.height.max });
+    if (adv.length) await videoTrack.applyConstraints({ advanced: adv });
+  } catch (e) { console.warn("applyFov:", e.message); }
+}
+
+async function reportCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices
+      .filter((d) => d.kind === "videoinput")
+      .map((d) => ({ id: d.deviceId, label: d.label || "Camera" }));
+    const active = videoTrack && videoTrack.getSettings ? videoTrack.getSettings().deviceId : "";
+    window.api.send("cameras:list", { cameras, active });
+  } catch (_) {}
+}
 
 async function init() {
   try {
@@ -114,22 +159,13 @@ async function init() {
     );
     landmarker = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: {
-        modelAssetPath: new URL(
-          "../models/pose_landmarker_lite.task",
-          import.meta.url
-        ).href,
+        modelAssetPath: new URL("../models/pose_landmarker_lite.task", import.meta.url).href,
         delegate: "GPU",
       },
       runningMode: "VIDEO",
       numPoses: 1,
     });
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: "user" },
-      audio: false,
-    });
-    video.srcObject = stream;
-    await video.play();
+    await startCamera();
     setState("none", "no person", null, "Calibrate from the menu while sitting upright.");
     window.api.send("monitor:ready");
     requestAnimationFrame(loop);
@@ -138,6 +174,20 @@ async function init() {
     setState("none", "camera error", null, String(err.message || err));
     window.api.send("monitor:error", String(err.message || err));
   }
+}
+
+// Live positioning check used during calibration coaching.
+function positioningFrom(lm) {
+  const ls = lm[L_SH], rs = lm[R_SH], le = lm[L_EAR], re = lm[R_EAR], nose = lm[NOSE];
+  const pts = [ls, rs, le, re, nose];
+  const vis = pts.every((p) => (p.visibility ?? 1) > 0.5);
+  const within = (p) => p.x > 0.04 && p.x < 0.96 && p.y > 0.04 && p.y < 0.96;
+  const inFrame = vis && pts.every(within);
+  const sw = Math.hypot(ls.x - rs.x, ls.y - rs.y) || 1;
+  const level = Math.abs(ls.y - rs.y) / sw < 0.1;
+  const midx = (ls.x + rs.x) / 2;
+  const centered = midx > 0.34 && midx < 0.66;
+  return { inFrame, level, centered, ready: inFrame && level && centered };
 }
 
 function loop() {
@@ -191,9 +241,16 @@ function loop() {
   }
 
   if (!baseline) {
-    setState("none", "not calibrated", null,
-      "Choose “Calibrate posture” from the menu while sitting tall.");
-    throttleSend({ state: "uncalibrated", score: 0 }); // lets the setup wizard show presence
+    const pos = positioningFrom(lm);
+    const cue = !pos.inFrame
+      ? "Sit back so your head & shoulders are fully in view"
+      : !pos.level
+      ? "Level your shoulders — sit evenly"
+      : !pos.centered
+      ? "Center yourself in the frame"
+      : "Looking good — roll shoulders back, chin up, sit tall, then calibrate";
+    setState(pos.ready ? "good" : "none", pos.ready ? "ready to calibrate" : "position yourself", null, cue);
+    throttleSend({ state: "uncalibrated", score: 0, pos });
     return;
   }
 
@@ -217,7 +274,13 @@ function throttleSend(payload) {
 
 // ---- IPC from main --------------------------------------------------------
 window.api.on("monitor:config", (cfg) => {
+  const prevCam = config.cameraId || "", prevWide = config.wideFov;
   config = { ...config, ...cfg };
+  if (cameraStarted) {
+    if ((config.cameraId || "") !== prevCam)
+      startCamera().catch((e) => window.api.send("monitor:error", String(e.message || e)));
+    else if (config.wideFov !== prevWide) applyFov();
+  }
 });
 window.api.on("monitor:setPaused", (p) => {
   paused = !!p;

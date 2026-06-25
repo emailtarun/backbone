@@ -53,6 +53,13 @@
       footer .spacer { flex: 1; }
       ol { padding-left: 20px; line-height: 1.7; font-size: 14px; }
       .hint { font-size: 12px; opacity: .6; }
+      select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d2d2d7; }
+      .check { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; opacity: .55; }
+      .check .mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #c7c7cc; flex: none;
+        display: flex; align-items: center; justify-content: center; }
+      .check.on { opacity: 1; }
+      .check.on .mark { background: #34c759; border-color: #34c759; }
+      .check.on .mark::after { content: "✓"; color: #fff; font-size: 11px; font-weight: 700; }
     </style>
   </head>
   <body>
@@ -84,14 +91,26 @@
           for camera permission the first time.</p>
         <div class="steps-cta"><button class="btn primary" id="enableCam">Enable camera</button></div>
         <div class="status" id="camStatus"><span class="dot"></span><span id="camText">Camera off</span></div>
+        <div class="card" id="camPickCard" style="display:none">
+          <div class="row"><label>Camera</label><select id="cameraId" style="max-width:230px"></select></div>
+          <div class="row"><label>Widest field of view<div class="hint">more of your upper body = steadier tracking</div></label><span class="switch"><input type="checkbox" id="wideFov" /><span class="slider"></span></span></div>
+          <p class="hint">Using an iPhone (Continuity Camera)? For the widest, steadiest view, turn
+            <b>off Center Stage</b> in Control Center → Video Effects — it crops and pans, which
+            throws off calibration.</p>
+        </div>
       </section>
 
       <section class="step" data-step="2">
         <h1>Calibrate your “good” posture</h1>
-        <p><b>Sit up straight</b>, head level, looking at your screen — then click
-          Calibrate. Backbone learns this as your baseline and flags when you drift from it.</p>
-        <div class="steps-cta"><button class="btn coral" id="calibrate">Calibrate (sit tall)</button></div>
-        <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Not calibrated yet</span></div>
+        <p>A live camera window is showing. <b>Sit the way you want to hold yourself</b> —
+          roll your shoulders back, lift your chin, sit tall — until all three turn green, then calibrate.</p>
+        <div class="card">
+          <div class="check" id="chkFrame"><span class="mark"></span> Head &amp; shoulders fully in frame</div>
+          <div class="check" id="chkLevel"><span class="mark"></span> Shoulders level</div>
+          <div class="check" id="chkCenter"><span class="mark"></span> Centered in the frame</div>
+        </div>
+        <div class="steps-cta"><button class="btn coral" id="calibrate" disabled>Calibrate (sit tall)</button></div>
+        <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Position yourself…</span></div>
         <p class="hint">You can re-calibrate anytime from the menu bar if you move your chair or camera.</p>
       </section>
 

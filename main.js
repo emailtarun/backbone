@@ -69,6 +69,8 @@ const store = new Store({
     launchAtLogin: false,
     startMonitoringOnLaunch: true,
     setupComplete: false,
+    cameraId: "", // "" = system default camera
+    wideFov: true, // widest field of view (min zoom) for best framing
     theme: "auto",
     overlayTheme: "slate",
     exercises: DEFAULT_EXERCISES,
@@ -341,6 +343,7 @@ function setMonitoring(on) {
 function calibrate() {
   const w = wins.monitor;
   if (w && w.webContents) {
+    showWin("monitor"); // show the live view so they can position themselves
     w.webContents.send("monitor:calibrate");
     notify("Calibrating posture", "Sit up straight and look at your screen…", true);
   }
@@ -354,7 +357,7 @@ function onPostureUpdate(p) {
   if (!monitoring || clockedOut || isIdle) return;
 
   if (p.state === "uncalibrated") {
-    sendSetup("setup:posture", { state: "detected" }); // person visible, no baseline yet
+    sendSetup("setup:posture", { state: "detected", pos: p.pos }); // person visible, no baseline yet
     return;
   }
   sendSetup("setup:posture", { state: p.state });
@@ -659,9 +662,24 @@ ipcMain.on("window:close", (e) => {
 });
 ipcMain.on("break:test", (_e, kind) => startBreak(kind || "long", true));
 
+// ---- camera list (from the monitor renderer) -----------------------------
+let lastCameras = { cameras: [], active: "" };
+ipcMain.on("cameras:list", (_e, data) => {
+  lastCameras = data || lastCameras;
+  ["setup", "settings"].forEach((n) => {
+    const w = wins[n];
+    if (w && !w.isDestroyed()) w.webContents.send("cameras:list", lastCameras);
+  });
+});
+ipcMain.handle("cameras:get", () => lastCameras);
+
 // ---- first-run setup wizard ----------------------------------------------
 ipcMain.on("setup:setMonitoring", (_e, on) => setMonitoring(!!on));
 ipcMain.on("setup:calibrate", () => calibrate());
+ipcMain.on("setup:showCamera", (_e, on) => {
+  if (on) showWin("monitor");
+  else if (wins.monitor && !wins.monitor.isDestroyed()) wins.monitor.hide();
+});
 ipcMain.on("setup:done", () => {
   store.set("setupComplete", true);
   if (wins.setup && !wins.setup.isDestroyed()) wins.setup.close();

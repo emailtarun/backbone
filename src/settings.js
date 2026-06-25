@@ -104,6 +104,26 @@ $("#resetEx").addEventListener("click", async () => {
 });
 $("#testLong").addEventListener("click", () => window.api.send("break:test", "long"));
 
+// ---- camera picker --------------------------------------------------------
+function populateCameras({ cameras, active } = {}) {
+  const sel = $("#cameraId");
+  if (!sel) return;
+  const chosen = cfg.cameraId || active || "";
+  sel.innerHTML = '<option value="">System default</option>';
+  (cameras || []).forEach((c) => {
+    const o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.label;
+    if (c.id === chosen) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+window.api.on("cameras:list", populateCameras);
+$("#cameraId").addEventListener("change", (e) => {
+  cfg.cameraId = e.target.value;
+  save({ cameraId: e.target.value });
+});
+
 // ---- apple watch / ntfy ---------------------------------------------------
 $("#genTopic").addEventListener("click", () => {
   const rnd = Math.random().toString(36).slice(2, 10);
@@ -122,4 +142,6 @@ $("#testWatch").addEventListener("click", () => window.api.send("watch:test"));
   bindInputs();
   renderDays(cfg.workDays || []);
   renderExercises(cfg.exercises || []);
+  const cams = await window.api.invoke("cameras:get");
+  if (cams) populateCameras(cams);
 })();

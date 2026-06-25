@@ -25,6 +25,8 @@ function show(n) {
   $("#skip").style.visibility = i === 0 || last ? "hidden" : "visible";
   // gate Next on the calibrate step until calibrated
   $("#next").disabled = i === 2 && !calibrated;
+  // show the live camera window only while calibrating
+  window.api.send("setup:showCamera", i === 2);
   paintDots();
 }
 
@@ -40,11 +42,50 @@ function finish() {
 $("#enableCam").addEventListener("click", () => {
   window.api.send("setup:setMonitoring", true);
   setStatus("camStatus", "camText", "warn", "Starting camera… allow access if macOS asks.");
+  $("#camPickCard").style.display = "block";
 });
-window.api.on("setup:posture", ({ state }) => {
-  if (state === "no-person")
+
+function populateCameras({ cameras, active }) {
+  if (!cameras || !cameras.length) return;
+  const sel = $("#cameraId");
+  const chosen = cfg.cameraId || active || "";
+  sel.innerHTML = "";
+  const def = document.createElement("option");
+  def.value = ""; def.textContent = "System default";
+  sel.appendChild(def);
+  cameras.forEach((c) => {
+    const o = document.createElement("option");
+    o.value = c.id; o.textContent = c.label;
+    if (c.id === chosen) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+window.api.on("cameras:list", populateCameras);
+$("#cameraId").addEventListener("change", (e) => {
+  cfg.cameraId = e.target.value;
+  window.api.invoke("settings:set", { cameraId: e.target.value });
+});
+$("#wideFov").addEventListener("change", (e) => window.api.invoke("settings:set", { wideFov: e.target.checked }));
+
+// ---- live positioning + camera status -------------------------------------
+const setCheck = (id, on) => $("#" + id).classList.toggle("on", !!on);
+window.api.on("setup:posture", ({ state, pos }) => {
+  if (state === "no-person") {
     setStatus("camStatus", "camText", "warn", "Camera on — but I can't see you. Sit in frame.");
-  else setStatus("camStatus", "camText", "ok", "Camera on — I can see you ✓");
+    ["chkFrame", "chkLevel", "chkCenter"].forEach((c) => setCheck(c, false));
+  } else {
+    setStatus("camStatus", "camText", "ok", "Camera on — I can see you ✓");
+  }
+  if (pos) {
+    setCheck("chkFrame", pos.inFrame);
+    setCheck("chkLevel", pos.level);
+    setCheck("chkCenter", pos.centered);
+    if (!calibrated) {
+      $("#calibrate").disabled = !pos.ready;
+      setStatus("calStatus", "calText", pos.ready ? "ok" : "warn",
+        pos.ready ? "Looking good — sit tall and calibrate" : "Adjust until all three are green");
+    }
+  }
 });
 
 // ---- calibrate ------------------------------------------------------------
@@ -101,5 +142,11 @@ function setStatus(boxId, textId, cls, msg) {
   $("#longIntervalMin").value = cfg.longIntervalMin;
   $("#watchEnabled").checked = !!cfg.watchEnabled;
   $("#watchTopic").value = cfg.watchTopic || "";
+  $("#wideFov").checked = cfg.wideFov !== false;
+  const cams = await window.api.invoke("cameras:get");
+  if (cams && cams.cameras && cams.cameras.length) {
+    populateCameras(cams);
+    $("#camPickCard").style.display = "block";
+  }
   show(0);
 })();
