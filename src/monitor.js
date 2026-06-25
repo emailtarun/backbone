@@ -142,6 +142,7 @@ function drawSkeleton(lm) {
 // ---- main loop ------------------------------------------------------------
 let landmarker = null;
 let lastSent = 0;
+let lastDetect = 0;
 let currentStream = null;
 let videoTrack = null;
 let cameraStarted = false;
@@ -279,7 +280,11 @@ function loop() {
   if (!landmarker || video.readyState < 2) return;
   if (noFrameWatch) { clearTimeout(noFrameWatch); noFrameWatch = null; console.log("[cam] live"); } // frames flowing
 
+  // Throttle the heavy pose model to ~12 fps — posture changes slowly, and this
+  // cuts CPU/GPU load ~5x (keeps weaker Macs cool and responsive).
   const now = performance.now();
+  if (now - lastDetect < 80) return;
+  lastDetect = now;
   let result;
   try {
     result = landmarker.detectForVideo(video, now);

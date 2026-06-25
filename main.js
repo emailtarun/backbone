@@ -205,6 +205,8 @@ let updateVersion = "";
 let checkingUpdate = false;
 let lastTallyAt = 0; // throttle posture-fault tallying
 let proximityOn = false; // "lean back" HUD state (hysteresis)
+let glowOn = false, cueOn = false; // on-screen slouch glow / cue states
+let flashShown = false; // is the transparent overlay window currently visible?
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -557,12 +559,36 @@ function maybeNudge() {
 // Flash / proximity HUD / sound  (renderer-driven)
 // ---------------------------------------------------------------------------
 function flashCmd(cmd) {
-  // don't spin up the overlay just to turn an alert off
-  if ((cmd.type === "proximity" || cmd.type === "cue" || cmd.type === "glow") && !cmd.on && (!wins.flash || wins.flash.isDestroyed())) return;
+  // Track which on-screen alerts are active. CRITICAL: only show/position/elevate
+  // the overlay window ONCE per visible session — never on every posture frame,
+  // which hammered the window server and could freeze the Mac.
+  if (cmd.type === "glow") glowOn = !!cmd.on;
+  else if (cmd.type === "cue") cueOn = !!cmd.on;
+  else if (cmd.type === "proximity") proximityOn = !!cmd.on;
+  const anyOn = glowOn || cueOn || proximityOn;
+
+  if (!anyOn) {
+    if (wins.flash && !wins.flash.isDestroyed()) {
+      wins.flash.webContents.send("flash:cmd", cmd); // clear the element
+      if (flashShown) wins.flash.hide();
+    }
+    flashShown = false;
+    return;
+  }
+
   const w = getWin("flash");
-  const send = () => { sizeToCursorDisplay(w); elevate(w); w.showInactive(); w.setIgnoreMouseEvents(true); w.webContents.send("flash:cmd", cmd); };
-  if (w.webContents.isLoading()) w.webContents.once("did-finish-load", send);
-  else send();
+  const apply = () => {
+    if (!flashShown) {
+      sizeToCursorDisplay(w);
+      elevate(w);
+      w.setIgnoreMouseEvents(true);
+      w.showInactive();
+      flashShown = true;
+    }
+    w.webContents.send("flash:cmd", cmd); // just update content while shown
+  };
+  if (w.webContents.isLoading()) w.webContents.once("did-finish-load", apply);
+  else apply();
 }
 
 function playSound(type, text) {
