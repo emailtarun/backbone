@@ -8,6 +8,7 @@ const https = require("https");
 const http = require("http");
 const zlib = require("zlib");
 const Store = require("electron-store");
+const { autoUpdater } = require("electron-updater");
 const stats = require("./lib/stats");
 const sched = require("./lib/schedule");
 
@@ -100,6 +101,10 @@ let snoozeUntil = 0;
 let microRemaining = 0; // seconds
 let longRemaining = 0;
 let warnShownFor = null; // 'micro' | 'long' | null
+
+let updateReady = false; // a downloaded update is waiting to install
+let updateVersion = "";
+let checkingUpdate = false;
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -220,6 +225,11 @@ function rebuildMenu() {
       { type: "separator" },
       { label: "Stats dashboard…", click: () => showWin("dashboard") },
       { label: "Settings…", click: () => showWin("settings") },
+      { type: "separator" },
+      {
+        label: updateReady ? `Restart to update → v${updateVersion}` : "Check for updates…",
+        click: checkForUpdatesManual,
+      },
       { type: "separator" },
       {
         label: clockedOut ? "Clock back in" : "Clock out for the day",
@@ -651,6 +661,56 @@ function registerShortcuts() {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-update (electron-updater, GitHub Releases feed)
+// ---------------------------------------------------------------------------
+function initAutoUpdate() {
+  if (!app.isPackaged) return; // updater only runs in a packaged build
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-downloaded", (info) => {
+    updateReady = true;
+    updateVersion = info.version;
+    updateTray();
+    const n = new Notification({
+      title: "Backbone update ready",
+      body: `Version ${info.version} downloaded — click to restart and install.`,
+    });
+    n.on("click", installUpdate);
+    n.show();
+  });
+  autoUpdater.on("error", (e) => console.error("[update]", e && e.message));
+
+  autoUpdater.checkForUpdates().catch(() => {});
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
+}
+
+function installUpdate() {
+  app.isQuitting = true;
+  autoUpdater.quitAndInstall();
+}
+
+function checkForUpdatesManual() {
+  if (updateReady) return installUpdate();
+  if (!app.isPackaged) {
+    notify("Backbone", "Updates only run in the installed app, not in dev.", true);
+    return;
+  }
+  if (checkingUpdate) return;
+  checkingUpdate = true;
+  autoUpdater
+    .checkForUpdates()
+    .then((r) => {
+      const v = r && r.updateInfo && r.updateInfo.version;
+      if (v && v !== app.getVersion())
+        notify("Backbone", `Downloading update ${v}…`, true);
+      else notify("Backbone", "You're on the latest version.", true);
+    })
+    .catch(() => notify("Backbone", "Couldn't check for updates right now.", true))
+    .finally(() => (checkingUpdate = false));
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(async () => {
@@ -666,6 +726,7 @@ app.whenReady().then(async () => {
   makeWin("monitor");
   applyLoginItem();
   registerShortcuts();
+  initAutoUpdate();
   setInterval(tick, 1000);
   // smooth cursor-following for the pre-break countdown pill
   setInterval(() => {
