@@ -68,6 +68,7 @@ const store = new Store({
     // system / appearance
     launchAtLogin: false,
     startMonitoringOnLaunch: true,
+    setupComplete: false,
     theme: "auto",
     overlayTheme: "slate",
     exercises: DEFAULT_EXERCISES,
@@ -261,6 +262,7 @@ const WINDEFS = {
   monitor: { file: "monitor.html", opts: { width: 420, height: 380, show: false, skipTaskbar: true,
     webPreferences: { backgroundThrottling: false, webSecurity: false } } },
   settings: { file: "settings.html", opts: { width: 480, height: 720, resizable: true } },
+  setup: { file: "setup.html", opts: { width: 560, height: 640, resizable: false, center: true, title: "Welcome to Backbone" } },
   dashboard: { file: "dashboard.html", opts: { width: 720, height: 600 } },
   overlay: { file: "overlay.html", opts: { frame: false, show: false,
     alwaysOnTop: true, skipTaskbar: true, hasShadow: false, movable: false } },
@@ -344,8 +346,19 @@ function calibrate() {
   }
 }
 
+function sendSetup(channel, data) {
+  if (wins.setup && !wins.setup.isDestroyed()) wins.setup.webContents.send(channel, data);
+}
+
 function onPostureUpdate(p) {
   if (!monitoring || clockedOut || isIdle) return;
+
+  if (p.state === "uncalibrated") {
+    sendSetup("setup:posture", { state: "detected" }); // person visible, no baseline yet
+    return;
+  }
+  sendSetup("setup:posture", { state: p.state });
+
   lastScore = p.score || 0;
 
   // proximity HUD
@@ -557,13 +570,16 @@ function asciiHeader(s) {
   // HTTP header values must be Latin-1; strip emoji/non-ASCII from the title.
   return String(s || "").replace(/[^\x20-\x7E]/g, "").trim() || "Backbone";
 }
-function pushWatch(title, body, { priority = 4, tags = "warning" } = {}) {
-  if (!store.get("watchEnabled")) return;
+function pushWatch(title, body, opts = {}) {
+  const { priority = 4, tags = "warning", force = false, onResult } = opts;
+  const done = (ok, detail) => onResult && onResult(ok, detail);
+  // `force` lets the manual test fire even when the feature toggle is off.
+  if (!force && !store.get("watchEnabled")) return done(false, "Watch buzzes are turned off in settings.");
   const topic = String(store.get("watchTopic") || "").trim();
-  if (!topic) return;
+  if (!topic) return done(false, "No ntfy topic set yet.");
   const base = String(store.get("watchServer") || "https://ntfy.sh").replace(/\/+$/, "");
   let url;
-  try { url = new URL(base + "/" + encodeURIComponent(topic)); } catch (_) { return; }
+  try { url = new URL(base + "/" + encodeURIComponent(topic)); } catch (_) { return done(false, "Invalid server URL."); }
   const lib = url.protocol === "http:" ? http : https;
   const data = Buffer.from(body || "", "utf8");
   const req = lib.request(
@@ -578,9 +594,13 @@ function pushWatch(title, body, { priority = 4, tags = "warning" } = {}) {
         Tags: tags,
       },
     },
-    (res) => res.resume()
+    (res) => {
+      res.resume();
+      res.on("end", () => done(res.statusCode === 200, res.statusCode === 200 ? "" : `ntfy responded ${res.statusCode}`));
+    }
   );
-  req.on("error", (e) => console.error("[watch] push failed:", e.message));
+  req.on("error", (e) => { console.error("[watch] push failed:", e.message); done(false, e.message); });
+  req.setTimeout(8000, () => req.destroy(new Error("Request timed out — check your connection.")));
   req.write(data);
   req.end();
 }
@@ -599,10 +619,14 @@ function notify(title, body, silent) {
 ipcMain.on("posture:update", (_e, p) => onPostureUpdate(p));
 ipcMain.on("monitor:ready", () => {
   pushConfig();
-  if (store.get("startMonitoringOnLaunch")) setMonitoring(true);
+  // During first-run onboarding the wizard drives monitoring; don't auto-start.
+  if (store.get("startMonitoringOnLaunch") && store.get("setupComplete")) setMonitoring(true);
 });
 ipcMain.on("monitor:error", (_e, msg) => notify("Backbone — camera error", String(msg)));
-ipcMain.on("monitor:calibrated", () => notify("Calibrated ✅", "Baseline captured.", true));
+ipcMain.on("monitor:calibrated", () => {
+  notify("Calibrated ✅", "Baseline captured.", true);
+  sendSetup("setup:calibrated");
+});
 
 ipcMain.on("overlay:done", (_e, { kind, skipped }) => endBreak(kind, skipped));
 ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
@@ -634,12 +658,30 @@ ipcMain.on("window:close", (e) => {
   if (w) (w === wins.monitor ? w.hide() : w.close());
 });
 ipcMain.on("break:test", (_e, kind) => startBreak(kind || "long", true));
-ipcMain.on("watch:test", () =>
+
+// ---- first-run setup wizard ----------------------------------------------
+ipcMain.on("setup:setMonitoring", (_e, on) => setMonitoring(!!on));
+ipcMain.on("setup:calibrate", () => calibrate());
+ipcMain.on("setup:done", () => {
+  store.set("setupComplete", true);
+  if (wins.setup && !wins.setup.isDestroyed()) wins.setup.close();
+  if (!monitoring && store.get("startMonitoringOnLaunch")) setMonitoring(true);
+  notify("Backbone is on", "I'm in your menu bar, watching your posture. 🦴", true);
+});
+ipcMain.on("watch:test", (e) => {
+  const sender = e.sender;
   pushWatch("Backbone test", "If you felt this on your wrist, it's working! 🎉", {
     priority: store.get("watchPriority"),
     tags: "white_check_mark",
-  })
-);
+    force: true,
+    onResult: (ok, detail) => {
+      if (ok)
+        notify("Test buzz sent ✓", "Check your phone & Watch. No buzz? Open the ntfy app and confirm you subscribed to your exact topic.", true);
+      else notify("Test buzz didn't send", detail || "Couldn't reach ntfy.", true);
+      if (sender && !sender.isDestroyed()) sender.send("watch:testResult", { ok, detail });
+    },
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Login item / shortcuts
@@ -727,6 +769,7 @@ app.whenReady().then(async () => {
   applyLoginItem();
   registerShortcuts();
   initAutoUpdate();
+  if (!store.get("setupComplete")) showWin("setup"); // first-run guided setup
   setInterval(tick, 1000);
   // smooth cursor-following for the pre-break countdown pill
   setInterval(() => {

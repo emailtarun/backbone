@@ -13,6 +13,9 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # Build platforms sequentially so the first job creates the GitHub Release
+      # and the second uploads into it (parallel publishes race on release create).
+      max-parallel: 1
       matrix:
         include:
           - os: macos-latest

@@ -193,6 +193,7 @@ function loop() {
   if (!baseline) {
     setState("none", "not calibrated", null,
       "Choose “Calibrate posture” from the menu while sitting tall.");
+    throttleSend({ state: "uncalibrated", score: 0 }); // lets the setup wizard show presence
     return;
   }
 
