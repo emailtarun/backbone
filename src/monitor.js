@@ -302,7 +302,10 @@ function loop() {
   else if (!badState && score > T) badState = true;
 
   const cue = badState ? cueFor(f) : null;
-  const proximity = Math.max(0, Math.min(100, (f.sw / baseline.sw - 1) * 300));
+  // proximity = how much you've leaned IN, from both shoulder-width and face
+  // distance (steadier than shoulders alone); lower gain = less twitchy.
+  const leanIn = ((f.sw / baseline.sw - 1) + (f.eye / baseline.eye - 1)) / 2;
+  const proximity = Math.max(0, Math.min(100, leanIn * 250));
   setState(badState ? "bad" : "good", badState ? "fix your posture" : "good posture", score,
     badState ? cue : "Nice — keep it up");
   subEl.textContent = badState ? "" : "";

@@ -161,7 +161,8 @@ function badnessThreshold() {
   return 75 - (store.get("sensitivity") / 100) * 55;
 }
 function proximityThreshold() {
-  return 55 - (store.get("proximitySensitivity") / 100) * 35;
+  // Less sensitive by default (50 -> ~47); needs a clear lean-in, not a small one.
+  return 70 - (store.get("proximitySensitivity") / 100) * 45;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +191,7 @@ let updateVersion = "";
 let checkingUpdate = false;
 let lastMenuSig = null; // dedupe tray menu rebuilds (rebuilding closes an open menu)
 let lastTallyAt = 0; // throttle posture-fault tallying
+let proximityOn = false; // "lean back" HUD state (hysteresis)
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -424,7 +426,7 @@ function setMonitoring(on) {
   monitoring = on;
   postureState = on ? "init" : "paused";
   badSince = null;
-  if (!on) { flashCmd({ type: "glow", on: false }); flashCmd({ type: "cue", on: false }); }
+  if (!on) { proximityOn = false; flashCmd({ type: "glow", on: false }); flashCmd({ type: "cue", on: false }); flashCmd({ type: "proximity", on: false }); }
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
   updateTray();
@@ -455,9 +457,15 @@ function onPostureUpdate(p) {
 
   lastScore = p.score || 0;
 
-  // proximity HUD
+  // proximity HUD ("lean back") with hysteresis so it doesn't flicker
   if (store.get("proximityAlert") && p.proximity != null) {
-    flashCmd({ type: "proximity", on: p.proximity > proximityThreshold() });
+    const T = proximityThreshold();
+    if (proximityOn && p.proximity < T * 0.7) proximityOn = false;
+    else if (!proximityOn && p.proximity > T) proximityOn = true;
+    flashCmd({ type: "proximity", on: proximityOn });
+  } else if (proximityOn) {
+    proximityOn = false;
+    flashCmd({ type: "proximity", on: false });
   }
 
   // The detector resolves good/bad with smoothing + hysteresis; trust its state.
@@ -560,8 +568,10 @@ function startBreak(kind, manual) {
   hideCursorTimer();
   warnShownFor = null;
   badSince = null;
-  flashCmd({ type: "glow", on: false }); // no slouch glow during a break
+  proximityOn = false;
+  flashCmd({ type: "glow", on: false }); // no slouch glow / HUD during a break
   flashCmd({ type: "cue", on: false });
+  flashCmd({ type: "proximity", on: false });
   if (store.get("soundEnabled")) playSound("break-start");
   if (!manual && store.get("watchBreaks"))
     pushWatch(
