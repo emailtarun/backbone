@@ -51,7 +51,16 @@ function renderRing() {
   el("ring").setAttribute("stroke-dashoffset", String(C * (1 - (total ? remaining / total : 0))));
 }
 function sideLabel(s, first) {
-  el("side").textContent = (s.mode === "side" || s.mode === "reps") ? (first ? "Left side" : "Right side") : "";
+  const sideEl = el("side");
+  if (s.mode === "side" || s.mode === "reps") {
+    sideEl.textContent = first ? "◀  Left side" : "Right side  ▶";
+    sideEl.classList.remove("show");
+    void sideEl.offsetWidth; // restart the pop animation on switch
+    sideEl.classList.add("show");
+  } else {
+    sideEl.classList.remove("show");
+    sideEl.textContent = "";
+  }
 }
 
 // ---- playback -------------------------------------------------------------
