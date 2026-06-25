@@ -91,13 +91,14 @@
       <div class="row"><label>Strict breaks<div class="hint">no skip / postpone</div></label><span class="switch"><input type="checkbox" data-key="strictBreaks" /><span class="slider"></span></span></div>
     </div>
 
-    <h2>Stretch routine</h2>
+    <h2>Stretch breaks</h2>
     <div class="card">
-      <div id="exList"></div>
+      <div class="row"><label>Spoken guidance<div class="hint">voice cues + “switch sides” during stretches</div></label><span class="switch"><input type="checkbox" data-key="breakVoice" /><span class="slider"></span></span></div>
+      <div class="hint" style="padding:8px 2px 4px">Backbone rotates through these and leans toward the areas you actually slouch in. Toggle any off to drop it from the rotation.</div>
+      <div id="libList"></div>
       <div class="btnrow">
-        <button class="btn" id="addEx">+ Add stretch</button>
-        <button class="btn" id="resetEx">Reset to defaults</button>
-        <button class="btn primary" id="testLong">Preview long break</button>
+        <button class="btn" id="resetLib">Enable all</button>
+        <button class="btn primary" id="testLong">Preview a stretch break</button>
       </div>
     </div>
 

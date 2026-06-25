@@ -15,14 +15,88 @@ const sched = require("./lib/schedule");
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-const DEFAULT_EXERCISES = [
-  { name: "Neck rolls", seconds: 30, cue: "Slowly circle your head both directions. Relax the shoulders." },
-  { name: "Shoulder rolls", seconds: 30, cue: "Lift shoulders to ears, hold, release. Roll back 5×." },
-  { name: "Chest opener", seconds: 30, cue: "Clasp hands behind your back, lift slightly, open the chest." },
-  { name: "Seated spinal twist", seconds: 40, cue: "Twist gently each side, hand on opposite knee. Breathe." },
-  { name: "Stand & reach up", seconds: 30, cue: "Stand, reach overhead, lengthen the spine, fold forward." },
-  { name: "Wrist & finger stretch", seconds: 30, cue: "Extend each arm, gently pull the fingers back. Shake out." },
+// Built-in stretch library. mode: "time" (seconds) · "side" (perSideSec, switch
+// at midpoint) · "reps" (repsPerSide, ~ secsPerRep each side). `anim` selects an
+// animated demonstration in the overlay; `area` drives posture-targeted picks.
+const STRETCH_LIBRARY = [
+  { id: "neck-rolls", name: "Neck rolls", area: "neck", anim: "neckroll", mode: "time", seconds: 30,
+    cue: "Drop your chin and roll your head in slow, easy circles — one way, then the other." },
+  { id: "trap-stretch", name: "Trap stretch", area: "side", anim: "traptilt", mode: "side", perSideSec: 30,
+    cue: "Ear toward shoulder, let the hand rest on your head for a gentle pull down the side of your neck." },
+  { id: "chin-tucks", name: "Chin tucks", area: "neck", anim: "chintuck", mode: "time", seconds: 30,
+    cue: "Glide your chin straight back to make a “double chin”, hold a beat, release. Repeat slowly." },
+  { id: "shoulder-rolls", name: "Shoulder rolls", area: "shoulders", anim: "shoulderroll", mode: "time", seconds: 30,
+    cue: "Lift your shoulders to your ears, then roll them back and down in big slow circles." },
+  { id: "bow-and-arrow", name: "Bow and arrow", area: "shoulders", anim: "bowarrow", mode: "reps", repsPerSide: 5,
+    cue: "One arm reaches forward, the other draws back like pulling a bowstring — open the chest as you pull." },
+  { id: "open-book", name: "Open book", area: "upperback", anim: "openbook", mode: "time", seconds: 45,
+    cue: "Arms out front, palms together. Sweep the top arm open like a book and follow it with your eyes. Alternate sides." },
+  { id: "spinal-twist", name: "Seated spinal twist", area: "upperback", anim: "twist", mode: "side", perSideSec: 20,
+    cue: "Hand to the opposite knee and twist gently from the waist. Lengthen up as you turn." },
+  { id: "chest-opener", name: "Chest opener", area: "chest", anim: "chestopen", mode: "time", seconds: 30,
+    cue: "Clasp your hands behind your back, lift them slightly and squeeze your shoulder blades together." },
+  { id: "overhead-reach", name: "Overhead reach", area: "fullbody", anim: "reachup", mode: "time", seconds: 30,
+    cue: "Interlace your fingers and press your palms to the ceiling — lengthen your whole spine." },
+  { id: "stand-fold", name: "Stand & fold", area: "fullbody", anim: "standfold", mode: "time", seconds: 30,
+    cue: "Stand and reach tall overhead, then slowly fold forward and let your head and arms hang." },
+  { id: "wrist-stretch", name: "Wrist & finger stretch", area: "wrists", anim: "wrist", mode: "side", perSideSec: 15,
+    cue: "Extend one arm, fingers up then down, and gently draw them back with your other hand." },
 ];
+
+const SECS_PER_REP = 4;
+function stretchTotal(s) {
+  if (s.mode === "side") return (s.perSideSec || 20) * 2;
+  if (s.mode === "reps") return (s.repsPerSide || 5) * SECS_PER_REP * 2;
+  return s.seconds || 30;
+}
+
+// Map a posture cue to the body area its stretches should target.
+function cueArea(cue) {
+  if (!cue) return null;
+  const c = cue.toLowerCase();
+  if (c.includes("one side") || c.includes("level")) return "side";
+  if (c.includes("head back over") || c.includes("screen")) return "chest";
+  if (c.includes("slump") || c.includes("sunk")) return "upperback";
+  if (c.includes("neck") || c.includes("chin") || c.includes("looking down")) return "neck";
+  return "upperback";
+}
+
+// Build a long-break routine: weight by the slouches you actually do, rotate so
+// you don't repeat last time's set, and fill to roughly the configured duration.
+function buildRoutine(kind) {
+  if (kind === "micro") {
+    return [{ id: "eye-rest", name: "Eye break", area: "eyes", anim: "eyes", mode: "time",
+      seconds: store.get("microDurationSec") || 20, total: store.get("microDurationSec") || 20,
+      cue: "Look at something ~20 feet away and blink slowly — let your eyes fully relax." }];
+  }
+  const disabled = store.get("disabledStretches") || [];
+  const enabled = STRETCH_LIBRARY.filter((s) => !disabled.includes(s.id));
+  const tally = store.get("faultTally") || {};
+  const last = new Set(store.get("lastRoutineIds") || []);
+  const scored = enabled
+    .map((s) => {
+      let key = Math.random() / (1 + (tally[s.area] || 0) * 1.5); // higher fault area => earlier
+      if (last.has(s.id)) key += 1; // push recently-used to the back
+      return { s, key };
+    })
+    .sort((a, b) => a.key - b.key);
+
+  const target = store.get("longDurationSec") || 180;
+  const out = [];
+  let t = 0;
+  for (const { s } of scored) {
+    out.push(s);
+    t += stretchTotal(s);
+    if (out.length >= 3 && t >= target) break;
+    if (out.length >= 6) break;
+  }
+  store.set("lastRoutineIds", out.map((s) => s.id));
+  // gentle decay so the targeting keeps adapting
+  const decayed = {};
+  for (const k of Object.keys(tally)) decayed[k] = tally[k] * 0.8;
+  store.set("faultTally", decayed);
+  return out.map((s) => ({ ...s, total: stretchTotal(s) }));
+}
 
 const store = new Store({
   defaults: {
@@ -75,7 +149,10 @@ const store = new Store({
     camZoom: 0, // manual zoom 0..1 (0 = widest); used when wideFov is off
     theme: "auto",
     overlayTheme: "slate",
-    exercises: DEFAULT_EXERCISES,
+    breakVoice: true, // spoken guidance during stretch breaks
+    disabledStretches: [], // ids excluded from the rotation
+    faultTally: {}, // posture-fault counts by area (for targeted routines)
+    lastRoutineIds: [], // last routine, to avoid repeats
   },
 });
 
@@ -111,6 +188,7 @@ let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
 let checkingUpdate = false;
 let lastMenuSig = null; // dedupe tray menu rebuilds (rebuilding closes an open menu)
+let lastTallyAt = 0; // throttle posture-fault tallying
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -400,6 +478,17 @@ function onPostureUpdate(p) {
   const showCue = postureState === "bad" && p.cue && Date.now() - (badSince || Date.now()) > 1500;
   flashCmd({ type: "cue", on: !!showCue, text: p.cue || "" });
 
+  // Tally which body areas you slouch in, to target stretch routines (throttled).
+  if (showCue && Date.now() - lastTallyAt > 8000) {
+    lastTallyAt = Date.now();
+    const area = cueArea(p.cue);
+    if (area) {
+      const tally = store.get("faultTally") || {};
+      tally[area] = Math.min(20, (tally[area] || 0) + 1);
+      store.set("faultTally", tally);
+    }
+  }
+
   updateTray();
 }
 
@@ -479,10 +568,12 @@ function startBreak(kind, manual) {
   const w = getWin("overlay");
   const payload = {
     kind,
-    durationSec: kind === "long" ? store.get("longDurationSec") : store.get("microDurationSec"),
-    exercises: kind === "long" ? store.get("exercises") : null,
+    routine: buildRoutine(kind),
     allowSkip: !store.get("strictBreaks") || manual,
     theme: store.get("overlayTheme"),
+    voice: store.get("breakVoice"),
+    sound: store.get("soundEnabled"),
+    volume: store.get("soundVolume"),
   };
   const send = () => { sizeToCursorDisplay(w); elevate(w); w.show(); w.focus(); w.webContents.send("overlay:show", payload); };
   if (w.webContents.isLoading()) w.webContents.once("did-finish-load", send);
@@ -674,9 +765,24 @@ ipcMain.handle("settings:set", (_e, patch) => {
   updateTray();
   return { ...store.store, badnessThreshold: badnessThreshold() };
 });
-ipcMain.handle("settings:resetExercises", () => {
-  store.set("exercises", DEFAULT_EXERCISES);
-  return DEFAULT_EXERCISES;
+// Stretch library: list with enabled state, toggle, and reset.
+ipcMain.handle("stretch:library", () => {
+  const disabled = store.get("disabledStretches") || [];
+  return STRETCH_LIBRARY.map((s) => ({
+    id: s.id, name: s.name, area: s.area,
+    detail: s.mode === "side" ? `${s.perSideSec}s per side` : s.mode === "reps" ? `${s.repsPerSide} reps per side` : `${s.seconds}s`,
+    enabled: !disabled.includes(s.id),
+  }));
+});
+ipcMain.handle("stretch:toggle", (_e, { id, enabled }) => {
+  const set = new Set(store.get("disabledStretches") || []);
+  enabled ? set.delete(id) : set.add(id);
+  store.set("disabledStretches", [...set]);
+  return [...set];
+});
+ipcMain.handle("stretch:reset", () => {
+  store.set("disabledStretches", []);
+  return [];
 });
 ipcMain.handle("stats:get", () => stats.summary());
 ipcMain.on("window:close", (e) => {

@@ -60,47 +60,26 @@ function renderDays(active) {
   });
 }
 
-// ---- exercises ------------------------------------------------------------
-function renderExercises(list) {
-  const box = $("#exList");
+// ---- stretch library ------------------------------------------------------
+async function renderLibrary() {
+  const box = $("#libList");
+  const list = await window.api.invoke("stretch:library");
   box.innerHTML = "";
-  list.forEach((ex, i) => {
+  list.forEach((s) => {
     const row = document.createElement("div");
-    row.className = "ex-row";
+    row.className = "row";
     row.innerHTML =
-      `<input class="name" value="${escapeHtml(ex.name)}" placeholder="Name" />` +
-      `<input class="sec" type="number" min="5" max="300" value="${ex.seconds}" />` +
-      `<input class="cue" value="${escapeHtml(ex.cue)}" placeholder="Instruction" />` +
-      `<button class="del" title="Remove">✕</button>`;
-    const commit = () => {
-      cfg.exercises[i] = {
-        name: row.querySelector(".name").value,
-        seconds: Number(row.querySelector(".sec").value) || 30,
-        cue: row.querySelector(".cue").value,
-      };
-      save({ exercises: cfg.exercises });
-    };
-    row.querySelectorAll("input").forEach((inp) => inp.addEventListener("change", commit));
-    row.querySelector(".del").addEventListener("click", () => {
-      cfg.exercises.splice(i, 1);
-      save({ exercises: cfg.exercises });
-      renderExercises(cfg.exercises);
-    });
+      `<label>${s.name}<div class="hint">${s.detail} · ${s.area}</div></label>` +
+      `<span class="switch"><input type="checkbox" ${s.enabled ? "checked" : ""}/><span class="slider"></span></span>`;
+    row.querySelector("input").addEventListener("change", (e) =>
+      window.api.invoke("stretch:toggle", { id: s.id, enabled: e.target.checked })
+    );
     box.appendChild(row);
   });
 }
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-}
-
-$("#addEx").addEventListener("click", () => {
-  cfg.exercises.push({ name: "New stretch", seconds: 30, cue: "Describe the movement." });
-  save({ exercises: cfg.exercises });
-  renderExercises(cfg.exercises);
-});
-$("#resetEx").addEventListener("click", async () => {
-  cfg.exercises = await window.api.invoke("settings:resetExercises");
-  renderExercises(cfg.exercises);
+$("#resetLib").addEventListener("click", async () => {
+  await window.api.invoke("stretch:reset");
+  renderLibrary();
 });
 $("#testLong").addEventListener("click", () => window.api.send("break:test", "long"));
 
@@ -179,7 +158,7 @@ function renderSeg(key, options, opts = {}) {
   fillInputs(cfg);
   bindInputs();
   renderDays(cfg.workDays || []);
-  renderExercises(cfg.exercises || []);
+  renderLibrary();
   renderSeg("nudgeStyle", [["notification", "Notification"], ["flash", "Flash"], ["voice", "Voice"], ["silent", "Silent"]]);
   renderSeg("overlayTheme", [["slate", "Slate"], ["aurora", "Aurora"], ["sunset", "Sunset"], ["forest", "Forest"], ["mono", "Mono"]]);
   // selecting a buzz strength fires a preview buzz so you feel the intensity

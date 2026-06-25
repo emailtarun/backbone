@@ -12,7 +12,8 @@ const onChannels = [
   "setup:posture", "setup:calibrated", "watch:testResult", "cameras:list", "monitor:baseline",
 ];
 const invokeChannels = [
-  "settings:get", "settings:set", "settings:resetExercises", "stats:get", "cameras:get",
+  "settings:get", "settings:set", "stats:get", "cameras:get",
+  "stretch:library", "stretch:toggle", "stretch:reset",
 ];
 
 contextBridge.exposeInMainWorld("api", {
