@@ -2,13 +2,10 @@ const border = document.getElementById("border");
 const hud = document.getElementById("hud");
 const cue = document.getElementById("cue");
 const cueText = document.getElementById("cueText");
-let flashTimer = null;
 
 window.api.on("flash:cmd", (cmd) => {
-  if (cmd.type === "flash") {
-    border.classList.add("on");
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => border.classList.remove("on"), 700);
+  if (cmd.type === "glow") {
+    border.classList.toggle("on", !!cmd.on); // persistent until turned off
   } else if (cmd.type === "proximity") {
     hud.classList.toggle("on", !!cmd.on);
   } else if (cmd.type === "cue") {

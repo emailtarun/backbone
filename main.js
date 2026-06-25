@@ -157,7 +157,8 @@ const store = new Store({
 });
 
 function badnessThreshold() {
-  return 60 - (store.get("sensitivity") / 100) * 45; // strict => lower
+  // Lenient by default (50 -> ~47); higher sensitivity lowers it (stricter).
+  return 75 - (store.get("sensitivity") / 100) * 55;
 }
 function proximityThreshold() {
   return 55 - (store.get("proximitySensitivity") / 100) * 35;
@@ -423,6 +424,7 @@ function setMonitoring(on) {
   monitoring = on;
   postureState = on ? "init" : "paused";
   badSince = null;
+  if (!on) { flashCmd({ type: "glow", on: false }); flashCmd({ type: "cue", on: false }); }
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
   updateTray();
@@ -443,6 +445,7 @@ function sendSetup(channel, data) {
 
 function onPostureUpdate(p) {
   if (!monitoring || clockedOut || isIdle) return;
+  if (breakActive) return; // don't nudge/judge posture while they're stretching
 
   if (p.state === "uncalibrated") {
     sendSetup("setup:posture", { state: "detected", pos: p.pos }); // person visible, no baseline yet
@@ -473,10 +476,11 @@ function onPostureUpdate(p) {
     stats.sample("good");
   }
 
-  // On-screen "what to fix" overlay — show the specific cue once a slouch has
-  // held briefly (avoids flicker on momentary movement), hide when good.
-  const showCue = postureState === "bad" && p.cue && Date.now() - (badSince || Date.now()) > 1500;
-  flashCmd({ type: "cue", on: !!showCue, text: p.cue || "" });
+  // Persistent yellow glow + "what to fix" cue while you're slouching (after a
+  // brief grace so momentary movement doesn't flicker it); both clear when good.
+  const showCue = postureState === "bad" && Date.now() - (badSince || Date.now()) > 1500;
+  flashCmd({ type: "glow", on: !!showCue });
+  flashCmd({ type: "cue", on: !!(showCue && p.cue), text: p.cue || "" });
 
   // Tally which body areas you slouch in, to target stretch routines (throttled).
   if (showCue && Date.now() - lastTallyAt > 8000) {
@@ -505,10 +509,8 @@ function maybeNudge() {
       tags: "warning",
     });
 
-  // Always give an on-screen flash — it works even if macOS notifications are
-  // off/suppressed, so a nudge is never silently missed.
-  flashCmd({ type: "flash" });
-
+  // The persistent on-screen glow + cue (driven from onPostureUpdate) is the
+  // always-visible signal; here we add the periodic notification / sound.
   const style = store.get("nudgeStyle");
   if (style === "voice") playSound("voice", "Check your posture. Sit up tall.");
   else if (style !== "silent") {
@@ -522,7 +524,7 @@ function maybeNudge() {
 // ---------------------------------------------------------------------------
 function flashCmd(cmd) {
   // don't spin up the overlay just to turn an alert off
-  if ((cmd.type === "proximity" || cmd.type === "cue") && !cmd.on && (!wins.flash || wins.flash.isDestroyed())) return;
+  if ((cmd.type === "proximity" || cmd.type === "cue" || cmd.type === "glow") && !cmd.on && (!wins.flash || wins.flash.isDestroyed())) return;
   const w = getWin("flash");
   const send = () => { sizeToCursorDisplay(w); elevate(w); w.showInactive(); w.setIgnoreMouseEvents(true); w.webContents.send("flash:cmd", cmd); };
   if (w.webContents.isLoading()) w.webContents.once("did-finish-load", send);
@@ -557,6 +559,9 @@ function startBreak(kind, manual) {
   breakActive = true;
   hideCursorTimer();
   warnShownFor = null;
+  badSince = null;
+  flashCmd({ type: "glow", on: false }); // no slouch glow during a break
+  flashCmd({ type: "cue", on: false });
   if (store.get("soundEnabled")) playSound("break-start");
   if (!manual && store.get("watchBreaks"))
     pushWatch(

@@ -16,110 +16,40 @@
       #clock { position: absolute; top: 26px; right: 32px; font-size: 14px; opacity: .55; font-variant-numeric: tabular-nums; }
       #kind { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: #FB7185; font-weight: 600; }
       body:not(.slate) #kind { color: rgba(255,255,255,.85); }
-      #stageWrap { position: relative; width: 230px; height: 200px; margin: 8px 0 2px; }
-      #figure { width: 230px; height: 200px; }
-      #figure * { transform-box: fill-box; }
-      #name { font-size: 30px; font-weight: 600; margin: 4px 24px 4px; }
-      #side { font-size: 14px; font-weight: 600; color: #FB7185; min-height: 18px; letter-spacing: .02em; }
+      #name { font-size: 34px; font-weight: 600; margin: 14px 24px 4px; }
+      #side { font-size: 15px; font-weight: 600; color: #FB7185; min-height: 20px; letter-spacing: .02em; }
       body:not(.slate) #side { color: #fff; }
-      #cue { font-size: 17px; opacity: .92; max-width: 560px; margin: 8px 30px 18px; line-height: 1.5; min-height: 50px; }
-      #ringWrap { position: relative; width: 150px; height: 150px; margin-bottom: 12px; }
+      #cue { font-size: 18px; opacity: .92; max-width: 580px; margin: 10px 30px 24px; line-height: 1.5; min-height: 54px; }
+      #ringWrap { position: relative; width: 200px; height: 200px; margin-bottom: 16px; }
       #ringSvg { transform: rotate(-90deg); }
       #count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-        font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; }
-      #steps { font-size: 13px; opacity: .65; margin-bottom: 7px; }
-      #dots { display: flex; gap: 7px; justify-content: center; margin-bottom: 20px; }
+        font-size: 50px; font-weight: 600; font-variant-numeric: tabular-nums; }
+      #steps { font-size: 13px; opacity: .65; margin-bottom: 8px; }
+      #dots { display: flex; gap: 7px; justify-content: center; margin-bottom: 24px; }
       #dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.3); display: block; }
       #dots i.done { background: #FB7185; } #dots i.cur { background: #fff; }
-      .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-      .ctl { font: inherit; font-size: 14px; font-weight: 600; padding: 11px 18px; border-radius: 999px; border: none;
+      .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+      .ctl { font: inherit; font-size: 15px; font-weight: 600; padding: 12px 22px; border-radius: 999px; border: none;
         background: rgba(255,255,255,.16); color: #fff; cursor: pointer; transition: .12s; }
       .ctl:hover { background: rgba(255,255,255,.26); }
-      .ctl.icon { width: 46px; padding: 11px 0; }
-      #pause { background: #fff; color: #1b1b50; min-width: 104px; }
-      .endrow { display: flex; gap: 14px; }
+      #pause { background: #fff; color: #1b1b50; min-width: 112px; }
+      .endrow { display: flex; gap: 16px; }
       .link { font-size: 13px; opacity: .7; background: none; border: none; color: #fff; cursor: pointer; }
       .link:hover { opacity: 1; }
       .hidden { display: none !important; }
-      /* get-ready + done overlays */
-      #ready { position: absolute; inset: 0; background: inherit; display: flex; flex-direction: column;
-        align-items: center; justify-content: center; z-index: 5; }
-      #readyName { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
-      #readyLabel { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; margin-bottom: 18px; }
-      #readyNum { font-size: 86px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-
-      /* ---------- animated figure ---------- */
-      #head { transform-origin: 50% 100%; }
-      #armL { transform-origin: 100% 0%; }
-      #armR { transform-origin: 0% 0%; }
-      #fig  { transform-origin: 50% 86%; }
-      #handL, #handR { transform-origin: 50% 0%; }
-      .anim #fig, .anim #head, .anim #armL, .anim #armR { animation-duration: 3.6s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
-      .a-neckroll  #head { animation-name: neckroll; }
-      .a-traptilt  #head { animation-name: traptilt; }
-      .a-chintuck  #head { animation-name: chintuck; }
-      .a-shoulderroll #armL { animation-name: rollL; } .a-shoulderroll #armR { animation-name: rollR; }
-      .a-bowarrow  #armL { animation-name: bowL; } .a-bowarrow #armR { animation-name: bowR; }
-      .a-openbook  #fig  { animation-name: book; } .a-openbook #armR { animation-name: bookArm; }
-      .a-twist     #fig  { animation-name: twist; }
-      .a-chestopen #armL { animation-name: chestL; } .a-chestopen #armR { animation-name: chestR; }
-      .a-reachup   #armL { animation-name: reachL; } .a-reachup #armR { animation-name: reachR; }
-      .a-standfold #fig  { animation-name: fold; } .a-standfold #armL { animation-name: reachL; } .a-standfold #armR { animation-name: reachR; }
-      .a-wrist     #armR { animation-name: wristR; } .a-wrist #handR { animation-name: wristFlex; }
-      @keyframes neckroll { 0%{transform:rotate(-20deg)} 25%{transform:rotate(0) translateY(-2px)} 50%{transform:rotate(20deg)} 75%{transform:rotate(0) translateY(2px)} 100%{transform:rotate(-20deg)} }
-      @keyframes traptilt { 0%,42%{transform:rotate(-24deg)} 58%,100%{transform:rotate(24deg)} }
-      @keyframes chintuck { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-3px) scale(.92)} }
-      @keyframes rollL { 0%,100%{transform:translate(0,0)} 25%{transform:translate(3px,-4px)} 50%{transform:translate(5px,0)} 75%{transform:translate(3px,4px)} }
-      @keyframes rollR { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-3px,-4px)} 50%{transform:translate(-5px,0)} 75%{transform:translate(-3px,4px)} }
-      @keyframes bowL { 0%,100%{transform:rotate(0)} 50%{transform:rotate(34deg)} }
-      @keyframes bowR { 0%,100%{transform:rotate(0)} 50%{transform:rotate(-66deg)} }
-      @keyframes book { 0%,100%{transform:rotate(-15deg)} 50%{transform:rotate(15deg)} }
-      @keyframes bookArm { 0%,100%{transform:rotate(0)} 50%{transform:rotate(-52deg)} }
-      @keyframes twist { 0%{transform:rotate(-17deg)} 50%{transform:rotate(17deg)} 100%{transform:rotate(-17deg)} }
-      @keyframes chestL { 0%,100%{transform:rotate(8deg)} 50%{transform:rotate(40deg)} }
-      @keyframes chestR { 0%,100%{transform:rotate(-8deg)} 50%{transform:rotate(-40deg)} }
-      @keyframes reachL { 0%{transform:rotate(0)} 55%,100%{transform:rotate(-156deg)} }
-      @keyframes reachR { 0%{transform:rotate(0)} 55%,100%{transform:rotate(156deg)} }
-      @keyframes fold { 0%,40%{transform:translateY(0) scaleY(1)} 75%,100%{transform:translateY(14px) scaleY(.82)} }
-      @keyframes wristR { 0%,100%{transform:rotate(-58deg)} }
-      @keyframes wristFlex { 0%,100%{transform:rotate(-26deg)} 50%{transform:rotate(30deg)} }
-      .a-eyes #fig { display: none; }
-      #eyes { display: none; }
-      .a-eyes #eyes { display: block; }
-      .a-eyes #pupL, .a-eyes #pupR { animation: gaze 4s ease-in-out infinite; }
-      @keyframes gaze { 0%,100%{transform:translate(0,0)} 40%,60%{transform:translate(0,-3px) scale(.85)} }
     </style>
   </head>
   <body class="slate">
     <div id="clock"></div>
     <div id="kind">Stretch break</div>
-
-    <div id="stageWrap">
-      <svg id="figure" class="anim" viewBox="0 0 230 200" aria-hidden="true">
-        <g id="fig" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
-          <line x1="96" y1="156" x2="134" y2="156" />
-          <line x1="115" y1="86" x2="115" y2="156" />
-          <line x1="83" y1="88" x2="147" y2="88" />
-          <circle id="head" cx="115" cy="46" r="19" fill="#fff" stroke="none" />
-          <line id="neck" x1="115" y1="65" x2="115" y2="80" />
-          <g id="armL"><line x1="83" y1="88" x2="68" y2="120" /><line x1="68" y1="120" x2="66" y2="150" /><circle id="handL" cx="66" cy="150" r="6" fill="#fff" stroke="none" /></g>
-          <g id="armR"><line x1="147" y1="88" x2="162" y2="120" /><line x1="162" y1="120" x2="164" y2="150" /><circle id="handR" cx="164" cy="150" r="6" fill="#fff" stroke="none" /></g>
-        </g>
-        <g id="eyes" stroke="#fff" stroke-width="6" fill="none">
-          <ellipse cx="85" cy="100" rx="30" ry="20" /><ellipse cx="145" cy="100" rx="30" ry="20" />
-          <circle id="pupL" cx="85" cy="100" r="8" fill="#fff" stroke="none" /><circle id="pupR" cx="145" cy="100" r="8" fill="#fff" stroke="none" />
-        </g>
-      </svg>
-    </div>
-
     <div id="name">—</div>
     <div id="side"></div>
     <div id="cue"></div>
 
     <div id="ringWrap">
-      <svg id="ringSvg" width="150" height="150">
-        <circle cx="75" cy="75" r="65" stroke="rgba(255,255,255,.22)" stroke-width="9" fill="none" />
-        <circle id="ring" cx="75" cy="75" r="65" stroke="#FB7185" stroke-width="9" fill="none" stroke-linecap="round" />
+      <svg id="ringSvg" width="200" height="200">
+        <circle cx="100" cy="100" r="86" stroke="rgba(255,255,255,.22)" stroke-width="10" fill="none" />
+        <circle id="ring" cx="100" cy="100" r="86" stroke="#FB7185" stroke-width="10" fill="none" stroke-linecap="round" />
       </svg>
       <div id="count">–</div>
     </div>
@@ -128,19 +58,12 @@
     <div id="dots"></div>
 
     <div class="controls">
-      <button class="ctl icon" id="back" title="Previous">◁</button>
       <button class="ctl" id="pause">Pause</button>
-      <button class="ctl icon" id="skip" title="Next">▷</button>
+      <button class="ctl" id="skip">Skip ▸</button>
     </div>
     <div class="endrow">
       <button class="link" id="postpone">Postpone 5 min</button>
       <button class="link" id="end">End break</button>
-    </div>
-
-    <div id="ready" class="hidden">
-      <div id="readyLabel">Get ready</div>
-      <div id="readyName">—</div>
-      <div id="readyNum">3</div>
     </div>
 
     <script src="./overlay.js"></script>
