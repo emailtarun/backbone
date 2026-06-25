@@ -56,9 +56,7 @@
         "NSCameraUsageDescription": "Backbone uses your webcam on-device to detect your sitting posture. No video is recorded or sent anywhere.",
         "LSUIElement": 1
       },
-      "notarize": {
-        "teamId": "${APPLE_TEAM_ID}"
-      }
+      "notarize": true
     },
     "win": {
       "icon": "build/icon.png",
