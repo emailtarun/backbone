@@ -9,7 +9,7 @@ const sendChannels = [
 const onChannels = [
   "monitor:config", "monitor:setPaused", "monitor:calibrate",
   "sound:play", "flash:cmd", "overlay:show", "timer:tick",
-  "setup:posture", "setup:calibrated", "watch:testResult", "cameras:list", "monitor:baseline",
+  "setup:posture", "setup:calibrated", "setup:cameraError", "watch:testResult", "cameras:list", "monitor:baseline",
 ];
 const invokeChannels = [
   "settings:get", "settings:set", "stats:get", "cameras:get",

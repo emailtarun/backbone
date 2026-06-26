@@ -194,6 +194,7 @@ let clockedOut = false;
 let clockedOutDay = null;
 let isIdle = false;
 let breakActive = false;
+let breakWatchdog = null; // force-ends a break if the overlay never reports done
 let snoozeUntil = 0;
 
 let microRemaining = 0; // seconds
@@ -204,9 +205,10 @@ let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
 let checkingUpdate = false;
 let lastTallyAt = 0; // throttle posture-fault tallying
-let proximityOn = false; // "lean back" HUD state (hysteresis)
-let glowOn = false, cueOn = false; // on-screen slouch glow / cue states
+let proximityOn = false; // "lean back" hysteresis state (owned by onPostureUpdate)
+let glowOn = false, cueOn = false, proxShown = false; // overlay element visibility (owned by flashCmd)
 let flashShown = false; // is the transparent overlay window currently visible?
+const lastFlash = {}; // last cmd signature per type, to skip redundant per-frame sends
 
 // ---------------------------------------------------------------------------
 // Tray icon
@@ -354,7 +356,7 @@ function buildMenu() {
     { type: "separator" },
     {
       label: clockedOut ? "Clock back in" : "Clock out for the day",
-      click: () => { clockedOut = !clockedOut; clockedOutDay = sched.todayKey(); updateTray(); refreshMenu(); },
+      click: () => { clockedOut = !clockedOut; clockedOutDay = sched.todayKey(); if (clockedOut) clearOverlayAlerts(); updateTray(); refreshMenu(); },
     },
     { label: "Quit", click: () => app.quit() },
   ]);
@@ -453,7 +455,7 @@ function setMonitoring(on) {
   monitoring = on;
   postureState = on ? "init" : "paused";
   badSince = null;
-  if (!on) { proximityOn = false; flashCmd({ type: "glow", on: false }); flashCmd({ type: "cue", on: false }); flashCmd({ type: "proximity", on: false }); }
+  if (!on) clearOverlayAlerts();
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
   updateTray();
@@ -564,12 +566,17 @@ function flashCmd(cmd) {
   // which hammered the window server and could freeze the Mac.
   if (cmd.type === "glow") glowOn = !!cmd.on;
   else if (cmd.type === "cue") cueOn = !!cmd.on;
-  else if (cmd.type === "proximity") proximityOn = !!cmd.on;
-  const anyOn = glowOn || cueOn || proximityOn;
+  else if (cmd.type === "proximity") proxShown = !!cmd.on;
+  const anyOn = glowOn || cueOn || proxShown;
+
+  // Skip the per-frame IPC when this command hasn't actually changed.
+  const sig = (cmd.on ? "1" : "0") + (cmd.text || "");
+  const changed = lastFlash[cmd.type] !== sig;
+  lastFlash[cmd.type] = sig;
 
   if (!anyOn) {
     if (wins.flash && !wins.flash.isDestroyed()) {
-      wins.flash.webContents.send("flash:cmd", cmd); // clear the element
+      if (changed) wins.flash.webContents.send("flash:cmd", cmd); // clear the element
       if (flashShown) wins.flash.hide();
     }
     flashShown = false;
@@ -578,17 +585,28 @@ function flashCmd(cmd) {
 
   const w = getWin("flash");
   const apply = () => {
+    let justShown = false;
     if (!flashShown) {
       sizeToCursorDisplay(w);
       elevate(w);
       w.setIgnoreMouseEvents(true);
       w.showInactive();
       flashShown = true;
+      justShown = true; // re-assert element state after a (re)show
     }
-    w.webContents.send("flash:cmd", cmd); // just update content while shown
+    if (changed || justShown) w.webContents.send("flash:cmd", cmd);
   };
   if (w.webContents.isLoading()) w.webContents.once("did-finish-load", apply);
   else apply();
+}
+
+// Clear every on-screen alert (glow, cue, lean-back HUD) — used whenever posture
+// processing stops (paused, idle, clocked out, break) so nothing stays frozen.
+function clearOverlayAlerts() {
+  proximityOn = false;
+  flashCmd({ type: "glow", on: false });
+  flashCmd({ type: "cue", on: false });
+  flashCmd({ type: "proximity", on: false });
 }
 
 function playSound(type, text) {
@@ -620,10 +638,7 @@ function startBreak(kind, manual) {
   hideCursorTimer();
   warnShownFor = null;
   badSince = null;
-  proximityOn = false;
-  flashCmd({ type: "glow", on: false }); // no slouch glow / HUD during a break
-  flashCmd({ type: "cue", on: false });
-  flashCmd({ type: "proximity", on: false });
+  clearOverlayAlerts(); // no slouch glow / HUD during a break
   if (store.get("soundEnabled")) playSound("break-start");
   if (!manual && store.get("watchBreaks"))
     pushWatch(
@@ -632,10 +647,17 @@ function startBreak(kind, manual) {
       { priority: Math.max(2, store.get("watchPriority") - 1), tags: kind === "long" ? "person_in_lotus_position" : "eyes" }
     );
 
+  const routine = buildRoutine(kind);
+  // Watchdog: if the overlay renderer crashes / never sends overlay:done, force
+  // the break to end so it can't stay stuck (which would block ALL future breaks
+  // and leave posture detection paused). Cap = routine length + 2 min grace.
+  const totalMs = routine.reduce((a, s) => a + (s.total || s.seconds || 30), 0) * 1000;
+  clearTimeout(breakWatchdog);
+  breakWatchdog = setTimeout(() => { if (breakActive) endBreak(kind, true); }, totalMs + 120000);
+
   const w = getWin("overlay");
   const payload = {
-    kind,
-    routine: buildRoutine(kind),
+    kind, routine,
     allowSkip: !store.get("strictBreaks") || manual,
     theme: store.get("overlayTheme"),
     voice: store.get("breakVoice"),
@@ -648,6 +670,7 @@ function startBreak(kind, manual) {
 }
 
 function endBreak(kind, skipped) {
+  clearTimeout(breakWatchdog);
   breakActive = false;
   if (wins.overlay) wins.overlay.hide();
   if (store.get("soundEnabled") && !skipped) playSound("break-end");
@@ -697,6 +720,7 @@ function tick() {
   const nowIdle = idleSec >= store.get("idlePauseSec");
   if (nowIdle && !isIdle) {
     isIdle = true;
+    clearOverlayAlerts(); // don't leave a glow/cue frozen on screen while away
     if (store.get("idleResetBreaks")) resetBreakTimers();
   } else if (!nowIdle && isIdle) {
     isIdle = false;
@@ -806,7 +830,10 @@ ipcMain.on("monitor:ready", () => {
   // During first-run onboarding the wizard drives monitoring; don't auto-start.
   if (store.get("startMonitoringOnLaunch") && store.get("setupComplete")) setMonitoring(true);
 });
-ipcMain.on("monitor:error", (_e, msg) => notify("Backbone — camera error", String(msg)));
+ipcMain.on("monitor:error", (_e, msg) => {
+  notify("Backbone — camera error", String(msg));
+  sendSetup("setup:cameraError", String(msg)); // let onboarding offer to skip calibration
+});
 ipcMain.on("monitor:calibrated", (_e, baseline) => {
   if (baseline && typeof baseline === "object") store.set("baseline", baseline);
   notify("Calibration complete ✅", "Your posture baseline is set.", true);
@@ -825,11 +852,17 @@ ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
 });
 
 ipcMain.handle("settings:get", () => ({ ...store.store, badnessThreshold: badnessThreshold() }));
+const SETTING_MINS = { microIntervalMin: 1, longIntervalMin: 5, microDurationSec: 5, longDurationSec: 30,
+  holdSeconds: 3, alertCooldownMin: 1, reminderIntervalMin: 5, idlePauseSec: 15, preBreakWarnSec: 0 };
 ipcMain.handle("settings:set", (_e, patch) => {
-  const before = { micro: store.get("microIntervalMin"), long: store.get("longIntervalMin") };
+  // Clamp numeric settings — a cleared field arrives as 0 and a 0 interval/hold
+  // would fire a break/nudge every tick (a storm). Floor each to a safe minimum.
+  for (const [k, lo] of Object.entries(SETTING_MINS)) {
+    if (k in patch) { const n = Number(patch[k]); patch[k] = Number.isFinite(n) ? Math.max(lo, n) : lo; }
+  }
   for (const [k, v] of Object.entries(patch)) store.set(k, v);
-  if (patch.microIntervalMin && patch.microIntervalMin !== before.micro) microRemaining = patch.microIntervalMin * 60;
-  if (patch.longIntervalMin && patch.longIntervalMin !== before.long) longRemaining = patch.longIntervalMin * 60;
+  if ("microIntervalMin" in patch) microRemaining = store.get("microIntervalMin") * 60;
+  if ("longIntervalMin" in patch) longRemaining = store.get("longIntervalMin") * 60;
   if ("launchAtLogin" in patch) applyLoginItem();
   pushConfig();
   updateTray();
@@ -978,7 +1011,13 @@ app.whenReady().then(async () => {
   // Only one copy of this app may run (prevents a second instance fighting over
   // the camera / global shortcuts). A duplicate launch just exits.
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
-  app.on("second-instance", () => { if (wins.settings && !wins.settings.isDestroyed()) wins.settings.show(); });
+  app.on("second-instance", () => {
+    const w = (!store.get("setupComplete") && wins.setup) || wins.settings;
+    if (w && !w.isDestroyed()) w.show();
+  });
+  // Required for Windows toast notifications to show the app name/icon and fire
+  // their click handlers; harmless on macOS.
+  app.setAppUserModelId("io.milkshake.backbone");
 
   // Grant the webcam request from our own renderer (required on Windows/Linux,
   // harmless on macOS where the OS prompt still governs access).
@@ -987,8 +1026,9 @@ app.whenReady().then(async () => {
   if (app.dock) app.dock.hide();
 
   tray = new Tray(makeTrayIcon());
-  // Build the menu on demand so background updates can't close it mid-click.
-  refreshMenu(); // set the menu once; macOS opens it natively on click
+  refreshMenu(); // macOS opens the menu natively on click
+  // Windows/Linux only open the context menu on right-click; wire left-click too.
+  if (process.platform !== "darwin") tray.on("click", () => tray.popUpContextMenu());
   resetBreakTimers();
   updateTray();
   makeWin("monitor");

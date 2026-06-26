@@ -147,23 +147,25 @@ let currentStream = null;
 let videoTrack = null;
 let cameraStarted = false;
 let noFrameWatch = null; // watchdog: detect a stream with no actual frames
+let camGen = 0; // increments per startCamera() call; guards against overlapping starts
 
 // (Re)open the webcam using the configured device, at the widest field of view
 // we can get — high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
 async function startCamera() {
+  const gen = ++camGen; // re-entrancy guard: a newer call supersedes this one
   setState("none", "switching camera…", null, "");
   if (currentStream) { currentStream.getTracks().forEach((t) => t.stop()); currentStream = null; }
   const v = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
   if (config.cameraId) {
     v.deviceId = { exact: config.cameraId }; // explicit choice (e.g. iPhone) is honored
   } else {
-    // No explicit choice: prefer a built-in camera. iPhone/Continuity defaults
-    // often hang (asleep / not nearby); the built-in is always responsive.
+    // No explicit choice: prefer a real built-in webcam. iPhone/Continuity
+    // defaults hang when the phone's away; IR/virtual cams give black frames.
     try {
       const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
-      // Prefer a labelled built-in; otherwise the FIRST enumerated camera (which
-      // is the built-in on Macs) — never fall through to the Continuity default.
-      const builtin = cams.find((d) => /facetime|built-?in|macbook|imac/i.test(d.label)) || cams[0];
+      const real = cams.filter((d) => !/\b(ir|infrared|virtual|obs)\b/i.test(d.label));
+      const pool = real.length ? real : cams;
+      const builtin = pool.find((d) => /facetime|built-?in|macbook|imac|integrated|webcam/i.test(d.label)) || pool[0];
       if (builtin && builtin.deviceId) v.deviceId = { exact: builtin.deviceId };
       else v.facingMode = "user";
     } catch (_) { v.facingMode = "user"; }
@@ -173,6 +175,7 @@ async function startCamera() {
     navigator.mediaDevices.getUserMedia({ video: v, audio: false }),
     new Promise((_, rej) => setTimeout(() => rej(new Error("Camera didn't respond — pick a different camera in Settings.")), 8000)),
   ]);
+  if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); return; } // superseded — drop this stream
   currentStream = stream;
   videoTrack = stream.getVideoTracks()[0];
   video.srcObject = stream;
@@ -228,19 +231,30 @@ async function reportCameras() {
   } catch (_) {}
 }
 
+async function makeLandmarker(fileset, delegate) {
+  return PoseLandmarker.createFromOptions(fileset, {
+    baseOptions: {
+      modelAssetPath: new URL("../models/pose_landmarker_full.task", import.meta.url).href,
+      delegate,
+    },
+    runningMode: "VIDEO",
+    numPoses: 1,
+  });
+}
+
 async function init() {
   try {
     const fileset = await FilesetResolver.forVisionTasks(
       new URL("../vendor/wasm", import.meta.url).href
     );
-    landmarker = await PoseLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        modelAssetPath: new URL("../models/pose_landmarker_full.task", import.meta.url).href,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numPoses: 1,
-    });
+    // GPU is fast but its WebGL context fails on some machines (Windows iGPUs,
+    // VMs, RDP). Fall back to CPU so posture monitoring still works everywhere.
+    try {
+      landmarker = await makeLandmarker(fileset, "GPU");
+    } catch (gpuErr) {
+      console.warn("[pose] GPU delegate failed, falling back to CPU:", gpuErr && gpuErr.message);
+      landmarker = await makeLandmarker(fileset, "CPU");
+    }
     await startCamera();
     setState("none", "no person", null, "Calibrate from the menu while sitting upright.");
     window.api.send("monitor:ready");

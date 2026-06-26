@@ -11,6 +11,7 @@ let remaining = 0;
 let paused = false;
 let switched = false;
 let timer = null;
+let ended = false; // overlay:done/postpone already sent for this break
 let soundOn = true, volume = 0.6;
 
 const THEMES = ["slate", "aurora", "sunset", "forest", "mono"];
@@ -102,7 +103,15 @@ function finish() {
   document.querySelector(".controls").classList.add("hidden");
   document.querySelector(".endrow").classList.add("hidden");
   chime("done");
-  setTimeout(() => window.api.send("overlay:done", { kind, skipped: false }), 1500);
+  setTimeout(() => sendDone(false), 1500);
+}
+
+// Send overlay:done at most once — guards against double-counted stats / states.
+function sendDone(skipped) {
+  if (ended) return;
+  ended = true;
+  clearInterval(timer);
+  window.api.send("overlay:done", { kind, skipped });
 }
 
 // ---- controls -------------------------------------------------------------
@@ -110,9 +119,9 @@ el("pause").addEventListener("click", () => {
   paused = !paused;
   el("pause").textContent = paused ? "Resume" : "Pause";
 });
-el("skip").addEventListener("click", () => { idx++; playStretch(); });
-el("postpone").addEventListener("click", () => { clearInterval(timer); window.api.send("overlay:postpone", { kind, mins: 5 }); });
-el("end").addEventListener("click", () => { clearInterval(timer); window.api.send("overlay:done", { kind, skipped: true }); });
+el("skip").addEventListener("click", () => { if (!ended) { idx++; playStretch(); } });
+el("postpone").addEventListener("click", () => { if (ended) return; ended = true; clearInterval(timer); window.api.send("overlay:postpone", { kind, mins: 5 }); });
+el("end").addEventListener("click", () => sendDone(true));
 
 // ---- clock + show ---------------------------------------------------------
 function clock() { el("clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -130,7 +139,7 @@ window.api.on("overlay:show", (p) => {
   el("skip").classList.toggle("hidden", kind !== "long" || !allow);
   el("postpone").classList.toggle("hidden", !allow);
   el("end").classList.toggle("hidden", !allow);
-  idx = 0; paused = false; el("pause").textContent = "Pause";
+  idx = 0; paused = false; ended = false; el("pause").textContent = "Pause";
   buildDots();
   playStretch();
 });

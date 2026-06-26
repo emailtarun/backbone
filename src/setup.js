@@ -3,6 +3,7 @@ const steps = [...document.querySelectorAll(".step")];
 const TOTAL = steps.length;
 let i = 0;
 let calibrated = false;
+let cameraFailed = false;
 let cfg = {};
 
 // build progress dots
@@ -23,8 +24,8 @@ function show(n) {
   $("#next").textContent = i === 0 ? "Get started" : last ? "Finish" : "Next";
   // Skip is only meaningful on optional steps (camera/calibrate/breaks/watch)
   $("#skip").style.visibility = i === 0 || last ? "hidden" : "visible";
-  // gate Next on the calibrate step until calibrated
-  $("#next").disabled = i === 2 && !calibrated;
+  // gate Next on the calibrate step until calibrated (or the camera failed)
+  $("#next").disabled = i === 2 && !calibrated && !cameraFailed;
   // show the live camera window only while calibrating
   window.api.send("setup:showCamera", i === 2);
   paintDots();
@@ -82,6 +83,13 @@ window.api.on("setup:posture", ({ state, pos }) => {
       : "Center yourself in the frame";
     setStatus("calStatus", "calText", pos.ready ? "ok" : "warn", msg);
   }
+});
+
+window.api.on("setup:cameraError", (msg) => {
+  cameraFailed = true;
+  setStatus("camStatus", "camText", "warn", "Camera unavailable: " + (msg || "no signal"));
+  setStatus("calStatus", "calText", "warn", "You can continue and calibrate later from the menu bar.");
+  if (i === 2) $("#next").disabled = false;
 });
 
 window.api.on("setup:calibrated", () => {
