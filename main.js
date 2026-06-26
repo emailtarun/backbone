@@ -365,6 +365,7 @@ function fmtMin(sec) {
 // posture state changes — so a good/bad flicker as the user reaches to click can
 // never rebuild the menu out from under them (which made it "disappear").
 let lastMenuKey = null;
+let lastTrayKey = null;
 function menuKey() {
   let nb = "off";
   if ((store.get("microEnabled") || store.get("longEnabled")) && !clockedOut) {
@@ -429,6 +430,12 @@ function buildMenu() {
 function updateTray() {
   if (!tray) return;
   const statusKey = clockedOut ? "clocked" : monitoring ? postureState : "off";
+  // CRITICAL: updateTray() runs every posture frame (~12x/sec). Writing the tray
+  // title/icon that often makes the menubar flicker AND dismisses the menu the
+  // instant you open it ("menu not clickable"). Only touch the tray when the
+  // visible status actually changes.
+  if (statusKey === lastTrayKey) return;
+  lastTrayKey = statusKey;
   if (process.platform === "darwin") {
     // macOS shows a colored emoji next to a monochrome template icon
     tray.setTitle(monitoring && !clockedOut ? ` ${EMOJI[postureState] || ""}` : clockedOut ? " 💤" : "");
