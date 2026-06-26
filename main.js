@@ -7,6 +7,8 @@ const path = require("path");
 const https = require("https");
 const http = require("http");
 const zlib = require("zlib");
+const os = require("os");
+const crypto = require("crypto");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
 
@@ -156,6 +158,8 @@ const store = new Store({
     // system / appearance
     launchAtLogin: false,
     startMonitoringOnLaunch: true,
+    bugReports: true, // send anonymous crash/error reports (no video, no PII)
+    installId: "", // random anonymous id to group a user's reports
     setupComplete: false,
     baseline: null, // persisted posture calibration (survives restarts)
     cameraId: "", // "" = system default camera
@@ -348,6 +352,7 @@ function buildMenu() {
     { label: "Stats dashboard…", click: () => showWin("dashboard") },
     { label: "Settings…", click: () => showWin("settings") },
     { label: "Run setup again…", click: () => { store.set("setupComplete", false); showWin("setup"); } },
+    { label: "Report a problem…", click: () => showWin("report") },
     { type: "separator" },
     {
       label: updateReady ? `Restart to update → v${updateVersion}` : "Check for updates…",
@@ -385,6 +390,7 @@ const WINDEFS = {
     webPreferences: { backgroundThrottling: false, webSecurity: false } } },
   settings: { file: "settings.html", opts: { width: 480, height: 720, resizable: true } },
   setup: { file: "setup.html", opts: { width: 560, height: 640, resizable: false, center: true, title: "Welcome to Backbone" } },
+  report: { file: "report.html", opts: { width: 440, height: 380, resizable: false, center: true, title: "Report a problem" } },
   dashboard: { file: "dashboard.html", opts: { width: 720, height: 600 } },
   overlay: { file: "overlay.html", opts: { frame: false, show: false,
     alwaysOnTop: true, skipTaskbar: true, hasShadow: false, movable: false } },
@@ -776,6 +782,51 @@ function asciiHeader(s) {
   // HTTP header values must be Latin-1; strip emoji/non-ASCII from the title.
   return String(s || "").replace(/[^\x20-\x7E]/g, "").trim() || "Backbone";
 }
+
+// ---------------------------------------------------------------------------
+// Anonymous bug/crash reporting — POSTs to a fixed ntfy topic the dev watches.
+// No video, no PII; just version/OS/error + a random install id. Opt-out.
+// ---------------------------------------------------------------------------
+const BUG_TOPIC = "backbone-bugs-tb-4f9q2x7k";
+let reportCount = 0, lastReportAt = 0;
+const reportedSigs = new Set();
+
+function ntfyPost(topic, body, { title = "Backbone", tags = "", priority = 3 } = {}) {
+  let url;
+  try { url = new URL("https://ntfy.sh/" + encodeURIComponent(topic)); } catch (_) { return; }
+  const data = Buffer.from(String(body || ""), "utf8");
+  const req = https.request(url, { method: "POST", headers: {
+    "Content-Type": "text/plain; charset=utf-8", "Content-Length": data.length,
+    Title: asciiHeader(title), Tags: tags, Priority: String(priority),
+  } }, (r) => r.resume());
+  req.on("error", () => {});
+  req.setTimeout(8000, () => req.destroy());
+  req.write(data); req.end();
+}
+
+function reportBug(context, message, stack, opts = {}) {
+  if (!store.get("bugReports") && !opts.force) return;
+  const sig = context + "|" + String(message || "").slice(0, 120);
+  if (!opts.force) {
+    if (reportedSigs.has(sig)) return;             // don't resend the same error
+    if (reportCount >= 15) return;                 // per-session cap
+    if (Date.now() - lastReportAt < 4000) return;  // throttle bursts
+  }
+  reportedSigs.add(sig); reportCount++; lastReportAt = Date.now();
+  const body = [
+    `v${app.getVersion()} · ${process.platform} ${os.release()} ${process.arch}`,
+    `id ${store.get("installId") || "?"}`,
+    `[${context}] ${String(message || "").slice(0, 400)}`,
+    stack ? String(stack).split("\n").slice(0, 6).join("\n") : "",
+    opts.note ? "note: " + String(opts.note).slice(0, 800) : "",
+  ].filter(Boolean).join("\n");
+  ntfyPost(BUG_TOPIC, body, { title: opts.force ? "Backbone report" : "Backbone error",
+    tags: opts.force ? "speech_balloon" : "warning" });
+}
+
+// Catch crashes so they're reported instead of silently killing the app.
+process.on("uncaughtException", (e) => reportBug("main:uncaught", e && e.message, e && e.stack));
+process.on("unhandledRejection", (e) => reportBug("main:rejection", (e && e.message) || String(e), e && e.stack));
 function pushWatch(title, body, opts = {}) {
   const { priority = 4, tags = "warning", force = false, onResult } = opts;
   const done = (ok, detail) => onResult && onResult(ok, detail);
@@ -905,6 +956,15 @@ ipcMain.on("cameras:list", (_e, data) => {
 });
 ipcMain.handle("cameras:get", () => lastCameras);
 
+// ---- bug reporting --------------------------------------------------------
+ipcMain.on("report:error", (_e, info) => reportBug((info && info.context) || "renderer", info && info.message, info && info.stack));
+ipcMain.on("report:send", (e, note) => {
+  reportBug("user-report", "Manual report", null, { force: true, note });
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w && !w.isDestroyed()) w.close();
+  notify("Report sent ✓", "Thanks — this helps me fix it.", true);
+});
+
 // ---- first-run setup wizard ----------------------------------------------
 ipcMain.on("setup:setMonitoring", (_e, on) => setMonitoring(!!on));
 ipcMain.on("setup:calibrate", () => calibrate());
@@ -1018,6 +1078,7 @@ app.whenReady().then(async () => {
   // Required for Windows toast notifications to show the app name/icon and fire
   // their click handlers; harmless on macOS.
   app.setAppUserModelId("io.milkshake.backbone");
+  if (!store.get("installId")) store.set("installId", crypto.randomUUID()); // anonymous report id
 
   // Grant the webcam request from our own renderer (required on Windows/Linux,
   // harmless on macOS where the OS prompt still governs access).

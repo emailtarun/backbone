@@ -4,7 +4,7 @@ const sendChannels = [
   "posture:update", "monitor:ready", "monitor:error", "monitor:calibrated",
   "overlay:done", "overlay:postpone", "window:close", "break:test", "watch:test",
   "setup:setMonitoring", "setup:calibrate", "setup:done", "setup:showCamera",
-  "cameras:list",
+  "cameras:list", "report:error", "report:send",
 ];
 const onChannels = [
   "monitor:config", "monitor:setPaused", "monitor:calibrate",
@@ -32,3 +32,12 @@ contextBridge.exposeInMainWorld("api", {
     return Promise.reject(new Error("channel not allowed: " + channel));
   },
 });
+
+// Auto-capture uncaught renderer errors for the bug reporter (best-effort).
+const ctx = (location.pathname.split("/").pop() || "renderer").replace(".html", "");
+window.addEventListener("error", (e) =>
+  ipcRenderer.send("report:error", { context: "ui:" + ctx, message: e.message, stack: e.error && e.error.stack })
+);
+window.addEventListener("unhandledrejection", (e) =>
+  ipcRenderer.send("report:error", { context: "ui:" + ctx + ":rejection", message: String(e.reason), stack: e.reason && e.reason.stack })
+);
