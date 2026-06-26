@@ -12,7 +12,7 @@
     "dist:win": "electron-builder --win",
     "release": "npm version patch && git push --follow-tags",
     "notarize": "node scripts/notarize.js",
-    "ship": "npm run dist:mac && npm run notarize && npm run publish:mac",
+    "ship": "npm run dist:mac && npm run notarize && npm run publish:mac && bash scripts/alias-mac.sh",
     "publish:mac": "electron-builder --mac --publish always --prepackaged dist/mac-arm64/Backbone.app",
     "aliases": "bash scripts/aliases.sh"
   },

@@ -36,6 +36,16 @@ jobs:
         run: npx electron-builder ${{ matrix.platform }} --publish ${{ (startsWith(github.ref, 'refs/tags/v') && matrix.platform == '--win') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Always-latest alias: a versionless copy so the shared link never goes stale.
+      - name: Windows latest alias
+        if: matrix.platform == '--win' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          f=$(ls dist/*Setup*.exe | head -1)
+          cp "$f" dist/Backbone-windows.exe
+          gh release upload "${GITHUB_REF_NAME}" dist/Backbone-windows.exe --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: Backbone-${{ matrix.os }}
