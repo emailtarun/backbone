@@ -270,6 +270,7 @@ let lastTallyAt = 0; // throttle posture-fault tallying
 let proximityOn = false; // "lean back" hysteresis state (owned by onPostureUpdate)
 let glowOn = false, cueOn = false, proxShown = false; // overlay element visibility (owned by flashCmd)
 let flashShown = false; // is the transparent overlay window currently visible?
+let flashHideTimer = null; // deferred hide so posture oscillation can't strobe the window
 const lastFlash = {}; // last cmd signature per type, to skip redundant per-frame sends
 
 // ---------------------------------------------------------------------------
@@ -653,14 +654,25 @@ function flashCmd(cmd) {
   lastFlash[cmd.type] = sig;
 
   if (!anyOn) {
-    if (wins.flash && !wins.flash.isDestroyed()) {
-      if (changed) wins.flash.webContents.send("flash:cmd", cmd); // clear the element
-      if (flashShown) wins.flash.hide();
+    // Turn the element off immediately (instant visual feedback) but DEFER hiding
+    // the window. If posture flips bad→good→bad quickly, hiding/showing the window
+    // each frame strobes the screen and hammers WindowServer (the freeze bug). So
+    // keep the (now-transparent) window up and only hide after a calm stretch.
+    if (wins.flash && !wins.flash.isDestroyed() && changed) wins.flash.webContents.send("flash:cmd", cmd);
+    if (flashShown && !flashHideTimer) {
+      flashHideTimer = setTimeout(() => {
+        flashHideTimer = null;
+        if (!(glowOn || cueOn || proxShown) && flashShown && wins.flash && !wins.flash.isDestroyed()) {
+          wins.flash.hide();
+          flashShown = false;
+        }
+      }, 2500);
     }
-    flashShown = false;
     return;
   }
 
+  // An alert is active again — cancel any pending hide so the window stays put.
+  if (flashHideTimer) { clearTimeout(flashHideTimer); flashHideTimer = null; }
   const w = getWin("flash");
   const apply = () => {
     let justShown = false;
@@ -685,6 +697,11 @@ function clearOverlayAlerts() {
   flashCmd({ type: "glow", on: false });
   flashCmd({ type: "cue", on: false });
   flashCmd({ type: "proximity", on: false });
+  // Explicit stop (pause/break/idle/clock-out): hide now rather than waiting for
+  // the dwell timer, and drop any pending deferred hide.
+  if (flashHideTimer) { clearTimeout(flashHideTimer); flashHideTimer = null; }
+  if (flashShown && wins.flash && !wins.flash.isDestroyed()) wins.flash.hide();
+  flashShown = false;
 }
 
 function playSound(type, text) {
@@ -1131,9 +1148,14 @@ app.whenReady().then(async () => {
   // Only one copy of this app may run (prevents a second instance fighting over
   // the camera / global shortcuts). A duplicate launch just exits.
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+  let lastSecondInstance = 0;
   app.on("second-instance", () => {
+    // If another copy keeps trying to launch (e.g. an old build still in Login
+    // Items after replacing the app), don't let it strobe a window open.
+    if (Date.now() - lastSecondInstance < 4000) return;
+    lastSecondInstance = Date.now();
     const w = (!store.get("setupComplete") && wins.setup) || wins.settings;
-    if (w && !w.isDestroyed()) w.show();
+    if (w && !w.isDestroyed() && !w.isVisible()) w.show();
   });
   // Required for Windows toast notifications to show the app name/icon and fire
   // their click handlers; harmless on macOS.
