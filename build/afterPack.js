@@ -17,6 +17,16 @@ exports.default = async function (context) {
   const src = path.join(__dirname, "..", "node_modules", "@sentry");
   const dst = path.join(resApp, "node_modules", "@sentry");
   if (!fs.existsSync(src)) return;
+
+  // The packer may hardlink/symlink the already-collected files into the app, so
+  // they share inodes with the source — cpSync would then throw EINVAL ("src and
+  // dest cannot be the same"). Remove the destination first, then copy fresh
+  // real files so the bundle is self-contained.
+  try {
+    const st = fs.lstatSync(dst);
+    if (st.isSymbolicLink()) fs.unlinkSync(dst);
+    else fs.rmSync(dst, { recursive: true, force: true });
+  } catch (_) {}
   fs.cpSync(src, dst, { recursive: true });
   console.log("[afterPack] synced @sentry ->", dst);
 };
