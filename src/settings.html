@@ -122,7 +122,8 @@
       <div class="row"><label>Send buzzes to my phone &amp; watch<div class="hint">via ntfy — mirrors to your watch as a haptic tap</div></label><span class="switch"><input type="checkbox" data-key="watchEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>ntfy topic<div class="hint">a secret name; subscribe to it in the ntfy iOS app</div></label><input type="text" data-key="watchTopic" placeholder="posture-…" style="width:150px" /></div>
       <div class="row stack"><label>Buzz strength<div class="hint">tap one to feel it; Urgent can pierce Focus/DND</div></label><div class="seg" id="seg-watchPriority"></div></div>
-      <div class="row"><label>Buzz when slouching</label><span class="switch"><input type="checkbox" data-key="watchPosture" /><span class="slider"></span></span></div>
+      <div class="row"><label>Buzz when slouching<div class="hint">only after you've stayed slouched for a while — then again each interval until you sit up</div></label><span class="switch"><input type="checkbox" data-key="watchPosture" /><span class="slider"></span></span></div>
+      <div class="row"><label>Buzz after slouching for<div class="hint">seconds of continuous bad posture</div></label><input type="number" min="15" max="600" step="5" data-key="watchSlouchSec" style="width:70px" /></div>
       <div class="row"><label>Buzz on break reminders</label><span class="switch"><input type="checkbox" data-key="watchBreaks" /><span class="slider"></span></span></div>
       <div class="row"><label>Server<div class="hint">default ntfy.sh; change only if self-hosting</div></label><input type="text" data-key="watchServer" style="width:150px" /></div>
       <div class="btnrow">

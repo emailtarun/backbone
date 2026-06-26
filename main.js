@@ -152,6 +152,7 @@ const store = new Store({
     watchServer: "https://ntfy.sh",
     watchTopic: "",
     watchPosture: true,
+    watchSlouchSec: 60, // buzz the watch after this many seconds of continuous slouching
     watchBreaks: false,
     watchPriority: 4, // ntfy priority: 2 low · 3 normal · 4 strong · 5 urgent
     // system / appearance
@@ -249,6 +250,7 @@ let postureState = "init";
 let lastScore = 0;
 let badSince = null;
 let lastAlertAt = 0;
+let lastWatchSlouchAt = 0; // last sustained-slouch watch buzz (per continuous-bad episode)
 
 let clockedOut = false;
 let clockedOutDay = null;
@@ -517,6 +519,7 @@ function setMonitoring(on) {
   monitoring = on;
   postureState = on ? "init" : "paused";
   badSince = null;
+  lastWatchSlouchAt = 0;
   if (!on) clearOverlayAlerts();
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
@@ -564,15 +567,18 @@ function onPostureUpdate(p) {
   if (p.state === "no-person") {
     postureState = "no-person";
     badSince = null;
+    lastWatchSlouchAt = 0;
     stats.sample("no-person");
   } else if (p.state === "bad") {
     postureState = "bad";
     if (!badSince) badSince = Date.now();
     stats.sample("bad");
     maybeNudge();
+    maybeWatchSlouch();
   } else {
     postureState = "good";
     badSince = null;
+    lastWatchSlouchAt = 0;
     stats.sample("good");
   }
 
@@ -603,12 +609,6 @@ function maybeNudge() {
   if (sched.isQuietNow(store.store)) return;
   lastAlertAt = Date.now();
 
-  if (store.get("watchPosture"))
-    pushWatch("Fix your posture", "You've been slouching — sit up tall and roll your shoulders back.", {
-      priority: store.get("watchPriority"),
-      tags: "warning",
-    });
-
   // The persistent on-screen glow + cue (driven from onPostureUpdate) is the
   // always-visible signal; here we add the periodic notification / sound.
   const style = store.get("nudgeStyle");
@@ -617,6 +617,22 @@ function maybeNudge() {
     if (store.get("soundEnabled")) playSound("nudge");
     notify("Check your posture 🪑", "You've been slouching — reset your shoulders and lift your head.");
   }
+}
+
+// Buzz the watch once posture has been continuously bad past the threshold, then
+// repeat each interval until you sit up (badSince resets on good/no-person, so a
+// brief correction re-arms it). Independent of the on-screen nudge cadence.
+function maybeWatchSlouch() {
+  if (!store.get("watchPosture")) return;
+  const thresholdMs = Math.max(15, store.get("watchSlouchSec") || 60) * 1000;
+  if (Date.now() - (badSince || Date.now()) < thresholdMs) return;
+  if (lastWatchSlouchAt && Date.now() - lastWatchSlouchAt < thresholdMs) return; // re-buzz cadence
+  if (sched.isQuietNow(store.store)) return;
+  lastWatchSlouchAt = Date.now();
+  pushWatch("Sit up tall 🪑", "You've been slouching for a while — lengthen your spine and roll your shoulders back.", {
+    priority: store.get("watchPriority"),
+    tags: "warning",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -700,6 +716,7 @@ function startBreak(kind, manual) {
   hideCursorTimer();
   warnShownFor = null;
   badSince = null;
+  lastWatchSlouchAt = 0;
   clearOverlayAlerts(); // no slouch glow / HUD during a break
   if (store.get("soundEnabled")) playSound("break-start");
   if (!manual && store.get("watchBreaks"))
@@ -782,6 +799,8 @@ function tick() {
   const nowIdle = idleSec >= store.get("idlePauseSec");
   if (nowIdle && !isIdle) {
     isIdle = true;
+    badSince = null; // re-arm slouch timing when they come back
+    lastWatchSlouchAt = 0;
     clearOverlayAlerts(); // don't leave a glow/cue frozen on screen while away
     if (store.get("idleResetBreaks")) resetBreakTimers();
   } else if (!nowIdle && isIdle) {
@@ -940,7 +959,8 @@ ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
 
 ipcMain.handle("settings:get", () => ({ ...store.store, badnessThreshold: badnessThreshold() }));
 const SETTING_MINS = { microIntervalMin: 1, longIntervalMin: 5, microDurationSec: 5, longDurationSec: 30,
-  holdSeconds: 3, alertCooldownMin: 1, reminderIntervalMin: 5, idlePauseSec: 15, preBreakWarnSec: 0 };
+  holdSeconds: 3, alertCooldownMin: 1, reminderIntervalMin: 5, idlePauseSec: 15, preBreakWarnSec: 0,
+  watchSlouchSec: 15 };
 ipcMain.handle("settings:set", (_e, patch) => {
   // Clamp numeric settings — a cleared field arrives as 0 and a 0 interval/hold
   // would fire a break/nudge every tick (a storm). Floor each to a safe minimum.
