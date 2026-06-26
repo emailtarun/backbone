@@ -110,6 +110,7 @@ window.api.on("setup:calibrated", () => {
 );
 
 // ---- watch / ntfy ---------------------------------------------------------
+$("#bugReports").addEventListener("change", (e) => window.api.invoke("settings:set", { bugReports: e.target.checked }));
 $("#watchEnabled").addEventListener("change", (e) => window.api.invoke("settings:set", { watchEnabled: e.target.checked }));
 $("#watchTopic").addEventListener("change", (e) => window.api.invoke("settings:set", { watchTopic: e.target.value }));
 $("#genTopic").addEventListener("click", () => {
@@ -144,6 +145,7 @@ function setStatus(boxId, textId, cls, msg) {
   $("#longIntervalMin").value = cfg.longIntervalMin;
   $("#watchEnabled").checked = !!cfg.watchEnabled;
   $("#watchTopic").value = cfg.watchTopic || "";
+  $("#bugReports").checked = cfg.bugReports !== false;
   $("#wideFov").checked = cfg.wideFov !== false;
   const cams = await window.api.invoke("cameras:get");
   if (cams && cams.cameras && cams.cameras.length) {

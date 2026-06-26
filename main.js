@@ -7,7 +7,6 @@ const path = require("path");
 const https = require("https");
 const http = require("http");
 const zlib = require("zlib");
-const os = require("os");
 const crypto = require("crypto");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
@@ -172,6 +171,63 @@ const store = new Store({
     faultTally: {}, // posture-fault counts by area (for targeted routines)
     lastRoutineIds: [], // last routine, to avoid repeats
   },
+});
+
+// ---------------------------------------------------------------------------
+// Crash / error reporting via Sentry (private dashboard). The DSN is a
+// write-only client key — safe to ship. No video, no PII: IP/username/hostname
+// are dropped and home-folder paths are scrubbed from stack traces. Opt-out via
+// Settings → "Send anonymous bug reports".
+// ---------------------------------------------------------------------------
+const Sentry = require("@sentry/electron/main");
+const SENTRY_DSN = "https://bee86425bdfb4b4a81bece6c61abdedd@o4511629059751936.ingest.de.sentry.io/4511629068861520";
+let sentryOn = false;
+
+function scrubEvent(event) {
+  try {
+    delete event.server_name; // hostname can identify the machine
+    if (event.user) event.user = { id: event.user.id }; // keep only our anon id
+    const re = /([\/\\](?:Users|home)[\/\\])[^\/\\]+/g;
+    const clean = (s) => (typeof s === "string" ? s.replace(re, "$1<user>") : s);
+    if (event.message) event.message = clean(event.message);
+    for (const ex of (event.exception && event.exception.values) || []) {
+      ex.value = clean(ex.value);
+      for (const fr of (ex.stacktrace && ex.stacktrace.frames) || []) {
+        fr.filename = clean(fr.filename);
+        fr.abs_path = clean(fr.abs_path);
+      }
+    }
+  } catch (_) {}
+  return event;
+}
+
+function initSentry(force) {
+  if (sentryOn) return true;
+  if (!force && !store.get("bugReports")) return false;
+  if (!store.get("installId")) { try { store.set("installId", crypto.randomUUID()); } catch (_) {} }
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    release: "backbone@" + app.getVersion(),
+    environment: IS_DEV ? "dev" : "production",
+    sendDefaultPii: false,
+    autoSessionTracking: false,
+    // We handle uncaught errors ourselves (report but keep the app running),
+    // so drop Sentry's own handlers that would exit the process.
+    integrations: (defaults) =>
+      defaults.filter((i) => i.name !== "OnUncaughtException" && i.name !== "OnUnhandledRejection"),
+    beforeSend: scrubEvent,
+  });
+  Sentry.setUser({ id: store.get("installId") || undefined });
+  sentryOn = true;
+  return true;
+}
+initSentry();
+
+// Report but don't crash — better UX for a background app than hard-exiting.
+process.on("uncaughtException", (e) => { if (sentryOn) Sentry.captureException(e); });
+process.on("unhandledRejection", (e) => {
+  if (!sentryOn) return;
+  Sentry.captureException(e instanceof Error ? e : new Error("Unhandled rejection: " + String(e)));
 });
 
 function badnessThreshold() {
@@ -784,49 +840,29 @@ function asciiHeader(s) {
 }
 
 // ---------------------------------------------------------------------------
-// Anonymous bug/crash reporting — POSTs to a fixed ntfy topic the dev watches.
-// No video, no PII; just version/OS/error + a random install id. Opt-out.
+// Bug reporting helpers (delivery via Sentry — see initSentry near the top).
+// Dedup + throttle + per-session cap so a looping error can't flood the project.
 // ---------------------------------------------------------------------------
-const BUG_TOPIC = "backbone-bugs-tb-4f9q2x7k";
 let reportCount = 0, lastReportAt = 0;
 const reportedSigs = new Set();
 
-function ntfyPost(topic, body, { title = "Backbone", tags = "", priority = 3 } = {}) {
-  let url;
-  try { url = new URL("https://ntfy.sh/" + encodeURIComponent(topic)); } catch (_) { return; }
-  const data = Buffer.from(String(body || ""), "utf8");
-  const req = https.request(url, { method: "POST", headers: {
-    "Content-Type": "text/plain; charset=utf-8", "Content-Length": data.length,
-    Title: asciiHeader(title), Tags: tags, Priority: String(priority),
-  } }, (r) => r.resume());
-  req.on("error", () => {});
-  req.setTimeout(8000, () => req.destroy());
-  req.write(data); req.end();
-}
-
-function reportBug(context, message, stack, opts = {}) {
-  if (!store.get("bugReports") && !opts.force) return;
+function reportBug(context, message, stack) {
+  if (!sentryOn) return;
   const sig = context + "|" + String(message || "").slice(0, 120);
-  if (!opts.force) {
-    if (reportedSigs.has(sig)) return;             // don't resend the same error
-    if (reportCount >= 15) return;                 // per-session cap
-    if (Date.now() - lastReportAt < 4000) return;  // throttle bursts
-  }
+  if (reportedSigs.has(sig)) return;            // don't resend the same error
+  if (reportCount >= 25) return;                // per-session cap
+  if (Date.now() - lastReportAt < 2000) return; // throttle bursts
   reportedSigs.add(sig); reportCount++; lastReportAt = Date.now();
-  const body = [
-    `v${app.getVersion()} · ${process.platform} ${os.release()} ${process.arch}`,
-    `id ${store.get("installId") || "?"}`,
-    `[${context}] ${String(message || "").slice(0, 400)}`,
-    stack ? String(stack).split("\n").slice(0, 6).join("\n") : "",
-    opts.note ? "note: " + String(opts.note).slice(0, 800) : "",
-  ].filter(Boolean).join("\n");
-  ntfyPost(BUG_TOPIC, body, { title: opts.force ? "Backbone report" : "Backbone error",
-    tags: opts.force ? "speech_balloon" : "warning" });
+  const err = new Error(String(message || "Error"));
+  if (stack) err.stack = String(stack);
+  Sentry.captureException(err, { tags: { area: context || "renderer" } });
 }
 
-// Catch crashes so they're reported instead of silently killing the app.
-process.on("uncaughtException", (e) => reportBug("main:uncaught", e && e.message, e && e.stack));
-process.on("unhandledRejection", (e) => reportBug("main:rejection", (e && e.message) || String(e), e && e.stack));
+function reportManual(note) {
+  if (!initSentry(true)) return; // user clicked "send" — treat as consent for this report
+  Sentry.captureMessage("User report: " + String(note || "(no note)").slice(0, 1000), "info");
+}
+
 function pushWatch(title, body, opts = {}) {
   const { priority = 4, tags = "warning", force = false, onResult } = opts;
   const done = (ok, detail) => onResult && onResult(ok, detail);
@@ -915,6 +951,10 @@ ipcMain.handle("settings:set", (_e, patch) => {
   if ("microIntervalMin" in patch) microRemaining = store.get("microIntervalMin") * 60;
   if ("longIntervalMin" in patch) longRemaining = store.get("longIntervalMin") * 60;
   if ("launchAtLogin" in patch) applyLoginItem();
+  if ("bugReports" in patch) {
+    if (patch.bugReports) initSentry();
+    else if (sentryOn) { try { Sentry.close(); } catch (_) {} sentryOn = false; }
+  }
   pushConfig();
   updateTray();
   return { ...store.store, badnessThreshold: badnessThreshold() };
@@ -959,7 +999,7 @@ ipcMain.handle("cameras:get", () => lastCameras);
 // ---- bug reporting --------------------------------------------------------
 ipcMain.on("report:error", (_e, info) => reportBug((info && info.context) || "renderer", info && info.message, info && info.stack));
 ipcMain.on("report:send", (e, note) => {
-  reportBug("user-report", "Manual report", null, { force: true, note });
+  reportManual(note);
   const w = BrowserWindow.fromWebContents(e.sender);
   if (w && !w.isDestroyed()) w.close();
   notify("Report sent ✓", "Thanks — this helps me fix it.", true);
