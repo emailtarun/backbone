@@ -211,7 +211,7 @@ function initSentry(force) {
     release: "backbone@" + app.getVersion(),
     environment: IS_DEV ? "dev" : "production",
     sendDefaultPii: false,
-    autoSessionTracking: false,
+    autoSessionTracking: true, // release health: anonymous user/session counts per version
     // We handle uncaught errors ourselves (report but keep the app running),
     // so drop Sentry's own handlers that would exit the process.
     integrations: (defaults) =>
