@@ -1,6 +1,6 @@
 {
   "name": "backbone",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "Backbone — a menu-bar app that watches your posture via webcam and reminds you to move.",
   "main": "main.js",
   "scripts": {
