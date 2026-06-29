@@ -251,6 +251,7 @@ let lastScore = 0;
 let badSince = null;
 let lastAlertAt = 0;
 let lastWatchSlouchAt = 0; // last sustained-slouch watch buzz (per continuous-bad episode)
+let lastEscalateSound = 0; // last escalation reminder beep (after 30s of slouching)
 
 let clockedOut = false;
 let clockedOutDay = null;
@@ -588,14 +589,20 @@ function onPostureUpdate(p) {
     postureState = "good";
     badSince = null;
     lastWatchSlouchAt = 0;
+    lastEscalateSound = 0;
     stats.sample("good");
   }
 
   // Persistent yellow glow + "what to fix" cue while you're slouching (after a
   // brief grace so momentary movement doesn't flicker it); both clear when good.
-  const showCue = postureState === "bad" && Date.now() - (badSince || Date.now()) > 1500;
-  flashCmd({ type: "glow", on: !!showCue });
+  // After 30s of sustained slouching, escalate: the border flashes faster and a
+  // small reminder sound repeats every few seconds until posture is corrected.
+  const badMs = postureState === "bad" ? Date.now() - (badSince || Date.now()) : 0;
+  const showCue = badMs > 1500;
+  const escalate = badMs > 30000;
+  flashCmd({ type: "glow", on: !!showCue, urgent: escalate });
   flashCmd({ type: "cue", on: !!(showCue && p.cue), text: p.cue || "" });
+  if (escalate) maybeEscalateSound();
 
   // Tally which body areas you slouch in, to target stretch routines (throttled).
   if (showCue && Date.now() - lastTallyAt > 8000) {
@@ -628,6 +635,17 @@ function maybeNudge() {
   }
 }
 
+// After 30s of sustained slouching, play a small reminder sound every few seconds
+// until posture is corrected (paired with the faster border flash). Respects the
+// sound toggle and quiet hours; resets when posture recovers (lastEscalateSound).
+function maybeEscalateSound() {
+  if (!store.get("soundEnabled")) return;
+  if (sched.isQuietNow(store.store)) return;
+  if (Date.now() - lastEscalateSound < 5000) return; // every ~5s
+  lastEscalateSound = Date.now();
+  playSound("nudge");
+}
+
 // Buzz the watch once posture has been continuously bad past the threshold, then
 // repeat each interval until you sit up (badSince resets on good/no-person, so a
 // brief correction re-arms it). Independent of the on-screen nudge cadence.
@@ -657,7 +675,7 @@ function flashCmd(cmd) {
   const anyOn = glowOn || cueOn || proxShown;
 
   // Skip the per-frame IPC when this command hasn't actually changed.
-  const sig = (cmd.on ? "1" : "0") + (cmd.text || "");
+  const sig = (cmd.on ? "1" : "0") + (cmd.urgent ? "u" : "") + (cmd.text || "");
   const changed = lastFlash[cmd.type] !== sig;
   lastFlash[cmd.type] = sig;
 

@@ -13,6 +13,9 @@
       /* persistent amber glow — stays on until posture is corrected */
       #border.on { opacity: 1; animation: glowPulse 2.6s ease-in-out infinite; }
       @keyframes glowPulse { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
+      /* escalated: faster, more insistent flash after prolonged slouching */
+      #border.on.urgent { animation: glowFlash .8s ease-in-out infinite; }
+      @keyframes glowFlash { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
       #hud {
         position: fixed; top: 34px; left: 50%; transform: translateX(-50%) translateY(-20px);
         background: rgba(20,20,24,.82); color: #fff; padding: 12px 20px; border-radius: 999px;
