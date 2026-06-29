@@ -13,6 +13,7 @@ let switched = false;
 let timer = null;
 let ended = false; // overlay:done/postpone already sent for this break
 let soundOn = true, volume = 0.6;
+let allowSkip = true; // whether the break can be dismissed (false in strict mode)
 
 const THEMES = ["slate", "aurora", "sunset", "forest", "mono"];
 
@@ -123,6 +124,11 @@ el("skip").addEventListener("click", () => { if (!ended) { idx++; playStretch();
 el("postpone").addEventListener("click", () => { if (ended) return; ended = true; clearInterval(timer); window.api.send("overlay:postpone", { kind, mins: 5 }); });
 el("end").addEventListener("click", () => sendDone(true));
 
+// Esc dismisses the break (same as "End break") — unless it's a strict break.
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && allowSkip && !ended) sendDone(true);
+});
+
 // ---- clock + show ---------------------------------------------------------
 function clock() { el("clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 clock(); setInterval(clock, 1000);
@@ -133,12 +139,12 @@ window.api.on("overlay:show", (p) => {
   soundOn = !!p.sound; volume = p.volume ?? 0.6;
   setTheme(p.theme);
   el("kind").textContent = kind === "long" ? "Stretch break" : "Eye break";
-  const allow = p.allowSkip !== false;
+  allowSkip = p.allowSkip !== false;
   document.querySelector(".controls").classList.remove("hidden");
   document.querySelector(".endrow").classList.remove("hidden");
-  el("skip").classList.toggle("hidden", kind !== "long" || !allow);
-  el("postpone").classList.toggle("hidden", !allow);
-  el("end").classList.toggle("hidden", !allow);
+  el("skip").classList.toggle("hidden", kind !== "long" || !allowSkip);
+  el("postpone").classList.toggle("hidden", !allowSkip);
+  el("end").classList.toggle("hidden", !allowSkip);
   idx = 0; paused = false; ended = false; el("pause").textContent = "Pause";
   buildDots();
   playStretch();
