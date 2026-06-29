@@ -255,6 +255,7 @@ let lastWatchSlouchAt = 0; // last sustained-slouch watch buzz (per continuous-b
 let clockedOut = false;
 let clockedOutDay = null;
 let isIdle = false;
+let idleStartedAt = 0; // when the current idle stretch began (to reset breaks only on a real walk-away)
 let breakActive = false;
 let breakWatchdog = null; // force-ends a break if the overlay never reports done
 let snoozeUntil = 0;
@@ -823,12 +824,16 @@ function tick() {
   const nowIdle = idleSec >= store.get("idlePauseSec");
   if (nowIdle && !isIdle) {
     isIdle = true;
+    idleStartedAt = Date.now();
     badSince = null; // re-arm slouch timing when they come back
     lastWatchSlouchAt = 0;
     clearOverlayAlerts(); // don't leave a glow/cue frozen on screen while away
-    if (store.get("idleResetBreaks")) resetBreakTimers();
   } else if (!nowIdle && isIdle) {
     isIdle = false;
+    // Sitting still pauses the countdown (above); only a real walk-away (5+ min)
+    // should reset it — otherwise reading/watching for a minute kept wiping all
+    // progress and the break never fired.
+    if (store.get("idleResetBreaks") && Date.now() - idleStartedAt >= 5 * 60 * 1000) resetBreakTimers();
   }
 
   const working = sched.isWorkingNow(store.store);
@@ -1093,9 +1098,19 @@ function applyLoginItem() {
 }
 function registerShortcuts() {
   // CommandOrControl => Cmd on macOS, Ctrl on Windows/Linux
-  globalShortcut.register("CommandOrControl+Alt+B", () => startBreak("long", true));
-  globalShortcut.register("CommandOrControl+Alt+P", () => setMonitoring(!monitoring));
-  globalShortcut.register("CommandOrControl+Alt+S", () => snooze(15));
+  const shortcuts = {
+    "CommandOrControl+Alt+B": () => startBreak("long", true),
+    "CommandOrControl+Alt+P": () => setMonitoring(!monitoring),
+    "CommandOrControl+Alt+S": () => snooze(15),
+  };
+  const failed = [];
+  for (const [accel, fn] of Object.entries(shortcuts)) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, fn); } catch (_) {}
+    if (!ok) failed.push(accel);
+  }
+  // If another app already owns one of these, it silently won't fire — surface it.
+  if (failed.length && sentryOn) Sentry.captureMessage("Global shortcut registration failed: " + failed.join(", "), "warning");
 }
 
 // ---------------------------------------------------------------------------
