@@ -264,6 +264,7 @@ let snoozeUntil = 0;
 let microRemaining = 0; // seconds
 let longRemaining = 0;
 let warnShownFor = null; // 'micro' | 'long' | null
+let preBreakEscOn = false; // Esc grabbed globally only while the pre-break pill shows
 
 let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
@@ -807,6 +808,11 @@ function endBreak(kind, skipped) {
 // cursor-following pre-break countdown
 function showCursorTimer(label, secs) {
   if (!store.get("showCursorTimer")) return;
+  // The pill is shown inactive (never steals focus), so it can't get a keypress.
+  // Grab Esc globally just while it's up, so Esc cancels the imminent break.
+  if (!preBreakEscOn) {
+    try { preBreakEscOn = globalShortcut.register("Escape", cancelImminentBreak); } catch (_) {}
+  }
   const w = getWin("timer");
   const send = () => {
     elevate(w);
@@ -820,6 +826,17 @@ function showCursorTimer(label, secs) {
 }
 function hideCursorTimer() {
   if (wins.timer && !wins.timer.isDestroyed()) wins.timer.hide();
+  if (preBreakEscOn) { try { globalShortcut.unregister("Escape"); } catch (_) {} preBreakEscOn = false; }
+}
+// Esc during the pre-break countdown: skip this break (reset its timer to a full
+// interval) and dismiss the pill. Only meaningful while a warning is showing.
+function cancelImminentBreak() {
+  if (!warnShownFor) return;
+  if (warnShownFor === "long") longRemaining = store.get("longIntervalMin") * 60;
+  else microRemaining = store.get("microIntervalMin") * 60;
+  warnShownFor = null;
+  hideCursorTimer();
+  updateTray();
 }
 function positionTimerAtCursor() {
   if (!wins.timer || wins.timer.isDestroyed()) return;
