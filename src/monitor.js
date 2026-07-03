@@ -46,7 +46,7 @@ const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: ((a.z || 0) 
 const FEAT_KEYS = ["sw", "eye", "shY", "headY", "neck", "noseDrop", "fwdZ", "noseZ", "shTilt", "headTilt"];
 
 // Rich posture feature vector from one frame. Uses the depth (z) channel so we
-// can catch leaning forward/back — which a flat 2D view misses entirely.
+// can catch leaning forward/back - which a flat 2D view misses entirely.
 function featuresFrom(lm) {
   const ls = lm[L_SH], rs = lm[R_SH], le = lm[L_EAR], re = lm[R_EAR],
     nose = lm[NOSE], leye = lm[L_EYE], reye = lm[R_EYE];
@@ -56,8 +56,8 @@ function featuresFrom(lm) {
   if (sw < 1e-4) return null;
   const eye = dist(leye, reye) || sw * 0.3;
   return {
-    sw,                              // shoulder width — distance/lean proxy
-    eye,                             // inter-eye distance — head-only distance proxy
+    sw,                              // shoulder width - distance/lean proxy
+    eye,                             // inter-eye distance - head-only distance proxy
     shY: shMid.y,                    // shoulder height in frame (slump = lower)
     headY: earMid.y,                 // head height in frame
     neck: (shMid.y - earMid.y) / sw, // neck gap (head sinking)
@@ -71,7 +71,7 @@ function featuresFrom(lm) {
 
 function smoothFeatures(raw) {
   if (!feat) { feat = { ...raw }; return feat; }
-  const a = 0.35; // EMA — calms jitter, keeps it responsive
+  const a = 0.35; // EMA - calms jitter, keeps it responsive
   for (const k of FEAT_KEYS) feat[k] = feat[k] * (1 - a) + raw[k] * a;
   return feat;
 }
@@ -96,13 +96,13 @@ function badness(f) {
   const zBad = Math.max(0, zFwd * 1.0 + zBack * 0.6 - 0.04);
 
   // Tilt: off-centre cameras introduce lateral perspective so one shoulder always
-  // appears lower. The baseline absorbs this bias, but residual noise is higher —
+  // appears lower. The baseline absorbs this bias, but residual noise is higher -
   // halve the tilt weight to avoid false positives.
   const tiltW = b.cameraOffCentre ? 55 : 110;
   const tilt = Math.max(0, Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt) - 0.045);
 
   // From a below-eye camera, slumping down is very visible (large vDrop signal)
-  // but noseDrop is harder to read — reduce its contribution slightly.
+  // but noseDrop is harder to read - reduce its contribution slightly.
   const downW = b.cameraBelow ? 160 : 220;
 
   const raw =
@@ -151,7 +151,7 @@ let noFrameWatch = null; // watchdog: detect a stream with no actual frames
 let camGen = 0; // increments per startCamera() call; guards against overlapping starts
 
 // (Re)open the webcam using the configured device, at the widest field of view
-// we can get — high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
+// we can get - high resolution + minimum zoom (e.g. iPhone 0.5x ultra-wide).
 async function startCamera() {
   const gen = ++camGen; // re-entrancy guard: a newer call supersedes this one
   setState("none", "switching camera…", null, "");
@@ -174,9 +174,9 @@ async function startCamera() {
   // Timeout so an unresponsive camera surfaces an error instead of hanging forever.
   const stream = await Promise.race([
     navigator.mediaDevices.getUserMedia({ video: v, audio: false }),
-    new Promise((_, rej) => setTimeout(() => rej(new Error("Camera didn't respond — pick a different camera in Settings.")), 8000)),
+    new Promise((_, rej) => setTimeout(() => rej(new Error("Camera didn't respond - pick a different camera in Settings.")), 8000)),
   ]);
-  if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); return; } // superseded — drop this stream
+  if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); return; } // superseded - drop this stream
   currentStream = stream;
   videoTrack = stream.getVideoTracks()[0];
   video.srcObject = stream;
@@ -187,7 +187,7 @@ async function startCamera() {
   cameraStarted = true;
   await applyFov();
   reportCameras();
-  // If no frames arrive (camera temporarily contended), quietly retry — it
+  // If no frames arrive (camera temporarily contended), quietly retry - it
   // self-heals as soon as the camera is free. No warning, no manual relaunch.
   clearTimeout(noFrameWatch);
   noFrameWatch = setTimeout(() => {
@@ -269,7 +269,7 @@ async function init() {
 
 // Live positioning check used during calibration coaching.
 // Thresholds are deliberately loose so off-centre and desk-height cameras
-// can still calibrate — the baseline absorbs the geometric bias.
+// can still calibrate - the baseline absorbs the geometric bias.
 function positioningFrom(lm) {
   const ls = lm[L_SH], rs = lm[R_SH], le = lm[L_EAR], re = lm[R_EAR], nose = lm[NOSE];
   const pts = [ls, rs, le, re, nose];
@@ -295,7 +295,7 @@ function loop() {
   if (!landmarker || video.readyState < 2) return;
   if (noFrameWatch) { clearTimeout(noFrameWatch); noFrameWatch = null; console.log("[cam] live"); } // frames flowing
 
-  // Throttle the heavy pose model to ~12 fps — posture changes slowly, and this
+  // Throttle the heavy pose model to ~12 fps - posture changes slowly, and this
   // cuts CPU/GPU load ~5x (keeps weaker Macs cool and responsive).
   const now = performance.now();
   if (now - lastDetect < 80) return;
@@ -331,7 +331,7 @@ function loop() {
       shTiltAbs: Math.abs(lm[L_SH].y - lm[R_SH].y) /
                  (Math.hypot(lm[L_SH].x - lm[R_SH].x, lm[L_SH].y - lm[R_SH].y) || 1),
     });
-    setState("none", "calibrating…", null, "Hold still — sitting tall…");
+    setState("none", "calibrating…", null, "Hold still - sitting tall…");
     subEl.textContent = "Capturing your baseline";
     if (Date.now() >= calibrating.until && calibrating.samples.length >= 8) {
       const s = calibrating.samples;
@@ -371,20 +371,20 @@ function loop() {
     const cue = !pos.inFrame
       ? "Move so your head & shoulders fill the guide"
       : !pos.level
-      ? "Even your shoulders up — or reposition your camera if it's very far to one side"
+      ? "Even your shoulders up - or reposition your camera if it's very far to one side"
       : !pos.centered
       ? "Move a little more in front of your camera"
       : pos.cameraBelow
-      ? "Camera is below eye level — sit tall, look straight ahead, then Calibrate"
+      ? "Camera is below eye level - sit tall, look straight ahead, then Calibrate"
       : pos.cameraOffCentre
-      ? "Camera is off to one side — that's fine, face your screen normally, then Calibrate"
-      : "Looking good — sit tall, then Calibrate";
+      ? "Camera is off to one side - that's fine, face your screen normally, then Calibrate"
+      : "Looking good - sit tall, then Calibrate";
     const sub = !pos.ready
       ? "Fill the dashed guide"
       : pos.cameraBelow
-      ? "Low camera detected — works great, just calibrate upright"
+      ? "Low camera detected - works great, just calibrate upright"
       : pos.cameraOffCentre
-      ? "Side camera detected — works great, just sit facing your screen"
+      ? "Side camera detected - works great, just sit facing your screen"
       : "Roll shoulders back · chin up · sit tall";
     setState(pos.ready ? "good" : "none", pos.ready ? "ready" : "position yourself", null, cue);
     subEl.textContent = sub;
@@ -394,7 +394,7 @@ function loop() {
   }
 
   // Movement level: summed frame-to-frame feature change, slow-EMA'd. Distinguishes
-  // "holding one pose" (≈0.003 jitter floor) from actually shifting (spikes ≥0.02) —
+  // "holding one pose" (≈0.003 jitter floor) from actually shifting (spikes ≥0.02) -
   // drives the posture-variety nudge without any extra model work.
   if (prevRaw) {
     const d = Math.abs(raw.shY - prevRaw.shY) + Math.abs(raw.headY - prevRaw.headY) +
@@ -406,7 +406,7 @@ function loop() {
 
   const f = smoothFeatures(raw);
   const score = badness(f);
-  // hysteresis: enter "bad" above the threshold, only leave below 60% of it —
+  // hysteresis: enter "bad" above the threshold, only leave below 60% of it -
   // keeps the state stable so nudges actually accumulate and fire.
   const T = config.badnessThreshold ?? 37;
   if (badState && score < T * 0.6) badState = false;
@@ -418,7 +418,7 @@ function loop() {
   const leanIn = ((f.sw / baseline.sw - 1) + (f.eye / baseline.eye - 1)) / 2;
   const proximity = Math.max(0, Math.min(100, leanIn * 250));
   setState(badState ? "bad" : "good", badState ? "fix your posture" : "good posture", score,
-    badState ? cue : "Nice — keep it up");
+    badState ? cue : "Nice - keep it up");
   subEl.textContent = badState ? "" : "";
   throttleSend({ state: badState ? "bad" : "good", score, proximity, cue, move: moveEma });
 }
@@ -428,13 +428,13 @@ function cueFor(f) {
   const b = baseline;
   if (!b) return "Sit up tall.";
   const faults = [
-    [Math.max(0, b.neck - f.neck) * 4, "Lift your head — your neck is collapsing"],
-    [Math.max(0, f.noseDrop - b.noseDrop) * 6, "Raise your chin — you're looking down"],
-    [Math.max(0, 1 - f.sw / b.sw) * 3, "Sit back up — you've slumped backward"],
+    [Math.max(0, b.neck - f.neck) * 4, "Lift your head - your neck is collapsing"],
+    [Math.max(0, f.noseDrop - b.noseDrop) * 6, "Raise your chin - you're looking down"],
+    [Math.max(0, 1 - f.sw / b.sw) * 3, "Sit back up - you've slumped backward"],
     [Math.max(0, f.sw / b.sw - 1) * 3, "Ease back from the screen"],
-    [Math.max(0, f.shY - b.shY) * 7, "Sit up — you've sunk down in the chair"],
+    [Math.max(0, f.shY - b.shY) * 7, "Sit up - you've sunk down in the chair"],
     [Math.max(0, b.fwdZ - f.fwdZ) * 5, "Pull your head back over your shoulders"],
-    [(Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt)) * 3, "Level out — you're leaning to one side"],
+    [(Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt)) * 3, "Level out - you're leaning to one side"],
   ];
   faults.sort((a, c) => c[0] - a[0]);
   return faults[0][1];

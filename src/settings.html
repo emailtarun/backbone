@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Backbone — Settings</title>
+    <title>Backbone - Settings</title>
     <style>
       :root { color-scheme: light dark; }
       * { box-sizing: border-box; }
@@ -92,21 +92,21 @@
       <div class="row stack"><label>Nudge style</label><div class="seg" id="seg-nudgeStyle"></div></div>
       <div class="row"><label>“Lean back” proximity alert</label><span class="switch"><input type="checkbox" data-key="proximityAlert" /><span class="slider"></span></span></div>
       <div class="row"><label>Proximity sensitivity</label><input type="range" data-key="proximitySensitivity" min="0" max="100" step="5" /></div>
-      <div class="row"><label>Posture-variety nudge<div class="hint">even good posture held rigidly is bad — get a gentle cue to shift when you've been frozen a while</div></label><span class="switch"><input type="checkbox" data-key="postureVarietyEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Posture-variety nudge<div class="hint">even good posture held rigidly is bad - get a gentle cue to shift when you've been frozen a while</div></label><span class="switch"><input type="checkbox" data-key="postureVarietyEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>Nudge after staying still for<div class="hint">minutes</div></label><input type="number" data-key="varietyMin" min="5" max="120" style="width:70px" /></div>
     </div>
 
     <h2>Breaks</h2>
     <div class="card">
-      <div class="row stack"><label>Schedule preset<div class="hint">tap one to fill the timings below — then adjust anything you like</div></label><div class="seg" id="presetSeg"></div></div>
-      <div class="row"><label>Micro eye breaks<div class="hint">research says 20-second eye breaks are too short — give it a minute</div></label><span class="switch"><input type="checkbox" data-key="microEnabled" /><span class="slider"></span></span></div>
+      <div class="row stack"><label>Schedule preset<div class="hint">tap one to fill the timings below - then adjust anything you like</div></label><div class="seg" id="presetSeg"></div></div>
+      <div class="row"><label>Micro eye breaks<div class="hint">research says 20-second eye breaks are too short - give it a minute</div></label><span class="switch"><input type="checkbox" data-key="microEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>Micro interval<div class="hint">minutes</div></label><input type="number" data-key="microIntervalMin" min="1" max="180" /></div>
       <div class="row"><label>Micro duration<div class="hint">seconds</div></label><input type="number" data-key="microDurationSec" min="5" max="300" /></div>
       <div class="row"><label>Long stretch breaks</label><span class="switch"><input type="checkbox" data-key="longEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>Long interval<div class="hint">minutes</div></label><input type="number" data-key="longIntervalMin" min="5" max="240" /></div>
       <div class="row"><label>Long duration<div class="hint">seconds (used if no exercises)</div></label><input type="number" data-key="longDurationSec" min="30" max="900" /></div>
       <div class="row"><label>Pre-break warning<div class="hint">seconds of warning</div></label><input type="number" data-key="preBreakWarnSec" min="0" max="60" /></div>
-      <div class="row stack"><label>Warning style<div class="hint">the gentle dim eases you out of work — people skip it less</div></label><div class="seg" id="seg-preBreakStyle"></div></div>
+      <div class="row stack"><label>Warning style<div class="hint">the gentle dim eases you out of work - people skip it less</div></label><div class="seg" id="seg-preBreakStyle"></div></div>
       <div class="row"><label>Show cursor countdown</label><span class="switch"><input type="checkbox" data-key="showCursorTimer" /><span class="slider"></span></span></div>
       <div class="row"><label>Strict breaks<div class="hint">no skip / postpone</div></label><span class="switch"><input type="checkbox" data-key="strictBreaks" /><span class="slider"></span></span></div>
       <div class="row"><label>Water reminder<div class="hint">a gentle nudge to take a few sips</div></label><span class="switch"><input type="checkbox" data-key="hydrationEnabled" /><span class="slider"></span></span></div>
@@ -138,10 +138,10 @@
 
     <h2>Smart watch / phone buzz</h2>
     <div class="card">
-      <div class="row"><label>Send buzzes to my phone &amp; watch<div class="hint">via ntfy — mirrors to your watch as a haptic tap</div></label><span class="switch"><input type="checkbox" data-key="watchEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Send buzzes to my phone &amp; watch<div class="hint">via ntfy - mirrors to your watch as a haptic tap</div></label><span class="switch"><input type="checkbox" data-key="watchEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>ntfy topic<div class="hint">a secret name; subscribe to it in the ntfy iOS app</div></label><input type="text" data-key="watchTopic" placeholder="posture-…" style="width:150px" /></div>
       <div class="row stack"><label>Buzz strength<div class="hint">tap one to feel it; Urgent can pierce Focus/DND</div></label><div class="seg" id="seg-watchPriority"></div></div>
-      <div class="row"><label>Buzz when slouching<div class="hint">only after you've stayed slouched for a while — then again each interval until you sit up</div></label><span class="switch"><input type="checkbox" data-key="watchPosture" /><span class="slider"></span></span></div>
+      <div class="row"><label>Buzz when slouching<div class="hint">only after you've stayed slouched for a while - then again each interval until you sit up</div></label><span class="switch"><input type="checkbox" data-key="watchPosture" /><span class="slider"></span></span></div>
       <div class="row"><label>Buzz after slouching for<div class="hint">seconds of continuous bad posture</div></label><input type="number" min="15" max="600" step="5" data-key="watchSlouchSec" style="width:70px" /></div>
       <div class="row"><label>Buzz on break reminders</label><span class="switch"><input type="checkbox" data-key="watchBreaks" /><span class="slider"></span></span></div>
       <div class="row"><label>Server<div class="hint">default ntfy.sh; change only if self-hosting</div></label><input type="text" data-key="watchServer" style="width:150px" /></div>
@@ -173,7 +173,7 @@
     <div class="card">
       <div class="row"><label>Launch at login</label><span class="switch"><input type="checkbox" data-key="launchAtLogin" /><span class="slider"></span></span></div>
       <div class="row"><label>Start monitoring on launch</label><span class="switch"><input type="checkbox" data-key="startMonitoringOnLaunch" /><span class="slider"></span></span></div>
-      <div class="row"><label>Send anonymous crash &amp; usage reports<div class="hint">helps fix bugs &amp; count active users — no video, no personal data</div></label><span class="switch"><input type="checkbox" data-key="bugReports" /><span class="slider"></span></span></div>
+      <div class="row"><label>Send anonymous crash &amp; usage reports<div class="hint">helps fix bugs &amp; count active users - no video, no personal data</div></label><span class="switch"><input type="checkbox" data-key="bugReports" /><span class="slider"></span></span></div>
       <div class="row stack"><label>Break overlay theme<div class="hint">tap a swatch to preview</div></label>
         <div class="theme-seg" id="themePicker"></div>
         <div class="theme-preview th-slate" id="themePreview">

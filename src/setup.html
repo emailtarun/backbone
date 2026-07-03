@@ -92,14 +92,14 @@
       <section class="step active" data-step="0">
         <h1>Sit with backbone 🦴</h1>
         <p>Backbone watches your posture through your webcam and nudges you when you
-          slouch — plus eye breaks and stretch breaks to keep you moving.</p>
-        <p class="muted">Everything runs on your Mac. No video is recorded or uploaded —
+          slouch - plus eye breaks and stretch breaks to keep you moving.</p>
+        <p class="muted">Everything runs on your Mac. No video is recorded or uploaded -
           only on-device math. Let's get you set up in about a minute.</p>
       </section>
 
       <section class="step" data-step="1">
         <h1>Turn on the camera</h1>
-        <p>Backbone needs your webcam to see your posture. Click below — macOS will ask
+        <p>Backbone needs your webcam to see your posture. Click below - macOS will ask
           for camera permission the first time.</p>
         <div class="steps-cta"><button class="btn primary" id="enableCam">Enable camera</button></div>
         <div class="status" id="camStatus"><span class="dot"></span><span id="camText">Camera off</span></div>
@@ -107,18 +107,18 @@
           <div class="row"><label>Camera</label><select id="cameraId" style="max-width:230px"></select></div>
           <div class="row"><label>Widest field of view<div class="hint">more of your upper body = steadier tracking</div></label><span class="switch"><input type="checkbox" id="wideFov" /><span class="slider"></span></span></div>
           <p class="hint">Using an iPhone (Continuity Camera)? For the widest, steadiest view, turn
-            <b>off Center Stage</b> in Control Center → Video Effects — it crops and pans, which
+            <b>off Center Stage</b> in Control Center → Video Effects - it crops and pans, which
             throws off calibration.</p>
         </div>
       </section>
 
       <section class="step" data-step="2">
         <h1>Calibrate your “good” posture</h1>
-        <p>A <b>live camera window</b> just opened. Get into your best posture — roll your
-          shoulders back, lift your chin, sit tall — until the on-screen guide turns
+        <p>A <b>live camera window</b> just opened. Get into your best posture - roll your
+          shoulders back, lift your chin, sit tall - until the on-screen guide turns
           <b>green</b>, then press <b>Calibrate</b> right on that window.</p>
         <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Waiting for calibration…</span></div>
-        <p class="hint">Sit how you actually work — a relaxed 100–110° recline is healthy. This
+        <p class="hint">Sit how you actually work - a relaxed 100–110° recline is healthy. This
           continues automatically once you've calibrated; re-calibrate anytime from the menu bar.</p>
         <div class="card" id="deskCheck" style="display:none">
           <div class="row" style="font-weight:600">Desk check <span class="muted" style="font-weight:400;font-size:12px">&nbsp;from your camera + OSHA/Cornell guidelines</span></div>
@@ -128,9 +128,9 @@
 
       <section class="step" data-step="3">
         <h1>Break reminders</h1>
-        <p class="muted">Evidence-based defaults below — tweak now or later in Settings.</p>
+        <p class="muted">Evidence-based defaults below - tweak now or later in Settings.</p>
         <div class="card">
-          <div class="row"><label>Eye breaks<div class="muted" style="font-weight:400;font-size:12px">a full minute looking far away — 20 seconds is too short to help</div></label><span class="switch"><input type="checkbox" id="microEnabled" /><span class="slider"></span></span></div>
+          <div class="row"><label>Eye breaks<div class="muted" style="font-weight:400;font-size:12px">a full minute looking far away - 20 seconds is too short to help</div></label><span class="switch"><input type="checkbox" id="microEnabled" /><span class="slider"></span></span></div>
           <div class="row"><label>…every (min)</label><input type="number" id="microIntervalMin" min="1" max="180" /></div>
           <div class="row"><label>Stretch breaks</label><span class="switch"><input type="checkbox" id="longEnabled" /><span class="slider"></span></span></div>
           <div class="row"><label>…every (min)</label><input type="number" id="longIntervalMin" min="5" max="240" /></div>
@@ -141,7 +141,7 @@
 
       <section class="step" data-step="4">
         <h1>Buzz my phone &amp; watch <span class="muted">(optional)</span></h1>
-        <p>Get a haptic tap on your smart watch (Apple Watch, Garmin, Galaxy Watch…) when you slouch — using the free
+        <p>Get a haptic tap on your smart watch (Apple Watch, Garmin, Galaxy Watch…) when you slouch - using the free
           <b>ntfy</b> app. Skip this if you don't want it.</p>
         <div class="card">
           <div class="row"><label>Enable Watch / phone buzz</label><span class="switch"><input type="checkbox" id="watchEnabled" /><span class="slider"></span></span></div>
@@ -152,40 +152,40 @@
         <p class="muted">Setup:</p>
         <div class="qr">
           <img src="./ntfy-qr.svg" alt="QR code to the ntfy iOS app" />
-          <div class="muted"><b>1.</b> Install <b>ntfy</b> on your iPhone —
+          <div class="muted"><b>1.</b> Install <b>ntfy</b> on your iPhone -
             <a href="https://apps.apple.com/app/ntfy/id1625396347">get it on the App Store ↗</a>,
             or scan this code with your phone camera.</div>
         </div>
         <ol class="muted" start="2">
           <li>Open ntfy → tap “+” → <b>Subscribe to topic</b> → type your exact topic above.</li>
-          <li>Come back and hit <b>Send test buzz</b> — you should feel it.</li>
+          <li>Come back and hit <b>Send test buzz</b> - you should feel it.</li>
         </ol>
       </section>
 
       <section class="step" data-step="5">
         <h1>How Backbone works</h1>
         <div class="card">
-          <div class="tip"><span class="ico">🦴</span><div><b>Menu bar</b> — the spine icon shows 🟢 good or 🟡 slouching. Click it to pause, calibrate, take a break, or open stats.</div></div>
-          <div class="tip"><span class="ico">👀</span><div><b>Gentle nudges</b> — slouch for a few seconds and you'll get an on-screen cue telling you exactly what to fix, plus an optional watch buzz.</div></div>
-          <div class="tip"><span class="ico">🧘</span><div><b>Breaks</b> — quick eye breaks and longer stretch breaks appear on your schedule. Skip or postpone anytime.</div></div>
-          <div class="tip"><span class="ico">📈</span><div><b>Stats</b> — your streak, good-posture %, and trends live in the Stats dashboard.</div></div>
+          <div class="tip"><span class="ico">🦴</span><div><b>Menu bar</b> - the spine icon shows 🟢 good or 🟡 slouching. Click it to pause, calibrate, take a break, or open stats.</div></div>
+          <div class="tip"><span class="ico">👀</span><div><b>Gentle nudges</b> - slouch for a few seconds and you'll get an on-screen cue telling you exactly what to fix, plus an optional watch buzz.</div></div>
+          <div class="tip"><span class="ico">🧘</span><div><b>Breaks</b> - quick eye breaks and longer stretch breaks appear on your schedule. Skip or postpone anytime.</div></div>
+          <div class="tip"><span class="ico">📈</span><div><b>Stats</b> - your streak, good-posture %, and trends live in the Stats dashboard.</div></div>
         </div>
         <div class="h2">Get the most out of it</div>
         <div class="card">
           <div class="tip"><span class="ico">↻</span><div><b>Re-calibrate</b> whenever you change your chair, desk height, or camera.</div></div>
-          <div class="tip"><span class="ico">🎚️</span><div>Too touchy or not enough? Tune <b>Sensitivity</b> in Settings — changes apply live.</div></div>
+          <div class="tip"><span class="ico">🎚️</span><div>Too touchy or not enough? Tune <b>Sensitivity</b> in Settings - changes apply live.</div></div>
           <div class="tip"><span class="ico">📷</span><div>On an iPhone (Continuity Camera), keep <b>Center Stage off</b> for steady tracking.</div></div>
         </div>
       </section>
 
       <section class="step" data-step="6">
         <h1>You're all set 🎉</h1>
-        <p>Backbone now lives in your <b>menu bar</b> — click the spine icon anytime to
+        <p>Backbone now lives in your <b>menu bar</b> - click the spine icon anytime to
           pause, take a break, see stats, or open settings. Settings will open next so you
           can fine-tune everything.</p>
         <p class="muted">Tip: ⌥⌘B starts a stretch break · ⌥⌘P pauses monitoring · ⌥⌘S snoozes breaks.</p>
         <div class="card">
-          <div class="row"><label>Send anonymous crash &amp; usage reports<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px">Helps fix bugs and count active users. No video, no personal data — just app version, OS, error details &amp; a random ID. Change anytime in Settings.</div></label><span class="switch"><input type="checkbox" id="bugReports" /><span class="slider"></span></span></div>
+          <div class="row"><label>Send anonymous crash &amp; usage reports<div class="muted" style="font-weight:400;font-size:12px;margin-top:2px">Helps fix bugs and count active users. No video, no personal data - just app version, OS, error details &amp; a random ID. Change anytime in Settings.</div></label><span class="switch"><input type="checkbox" id="bugReports" /><span class="slider"></span></span></div>
         </div>
       </section>
     </main>

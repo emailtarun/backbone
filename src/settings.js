@@ -4,7 +4,7 @@ const save = (patch) => window.api.invoke("settings:set", patch).then((s) => (cf
 
 function sensWord(v) {
   v = Number(v);
-  return v <= 25 ? "Gentle — only clear slouches" : v >= 75 ? "Strict — flags small drifts" : "Balanced";
+  return v <= 25 ? "Gentle - only clear slouches" : v >= 75 ? "Strict - flags small drifts" : "Balanced";
 }
 
 // ---- generic data-key binding --------------------------------------------

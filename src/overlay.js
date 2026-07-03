@@ -115,7 +115,7 @@ function finish() {
   clearInterval(timer);
   el("name").textContent = "All done 🎉";
   el("side").textContent = "";
-  el("cue").textContent = "Nice work — back to it with a looser, taller spine.";
+  el("cue").textContent = "Nice work - back to it with a looser, taller spine.";
   el("count").textContent = "✓";
   el("ring").setAttribute("stroke-dashoffset", "0");
   [...el("dots").children].forEach((d) => (d.className = "done"));
@@ -126,7 +126,7 @@ function finish() {
   setTimeout(() => sendDone(false), 1500);
 }
 
-// Send overlay:done at most once — guards against double-counted stats / states.
+// Send overlay:done at most once - guards against double-counted stats / states.
 function sendDone(skipped) {
   if (ended) return;
   ended = true;
@@ -143,7 +143,7 @@ el("skip").addEventListener("click", () => { if (!ended) { idx++; playStretch();
 el("postpone").addEventListener("click", () => { if (ended) return; ended = true; clearInterval(timer); window.api.send("overlay:postpone", { kind, mins: 5 }); });
 el("end").addEventListener("click", () => sendDone(true));
 
-// Esc dismisses the break (same as "End break") — unless it's a strict break.
+// Esc dismisses the break (same as "End break") - unless it's a strict break.
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && allowSkip && !ended) sendDone(true);
 });

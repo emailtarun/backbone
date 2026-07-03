@@ -33,7 +33,7 @@ const sched = require("./lib/schedule");
 // animated demonstration in the overlay; `area` drives posture-targeted picks.
 const STRETCH_LIBRARY = [
   { id: "neck-rolls", name: "Neck rolls", area: "neck", anim: "neckroll", mode: "time", seconds: 30,
-    cue: "Drop your chin and roll your head in slow, easy circles — one way, then the other." },
+    cue: "Drop your chin and roll your head in slow, easy circles - one way, then the other." },
   { id: "trap-stretch", name: "Trap stretch", area: "side", anim: "traptilt", mode: "side", perSideSec: 30,
     cue: "Ear toward shoulder, let the hand rest on your head for a gentle pull down the side of your neck." },
   { id: "chin-tucks", name: "Chin tucks", area: "neck", anim: "chintuck", mode: "time", seconds: 30,
@@ -41,7 +41,7 @@ const STRETCH_LIBRARY = [
   { id: "shoulder-rolls", name: "Shoulder rolls", area: "shoulders", anim: "shoulderroll", mode: "time", seconds: 30,
     cue: "Lift your shoulders to your ears, then roll them back and down in big slow circles." },
   { id: "bow-and-arrow", name: "Bow and arrow", area: "shoulders", anim: "bowarrow", mode: "reps", repsPerSide: 5,
-    cue: "One arm reaches forward, the other draws back like pulling a bowstring — open the chest as you pull." },
+    cue: "One arm reaches forward, the other draws back like pulling a bowstring - open the chest as you pull." },
   { id: "open-book", name: "Open book", area: "upperback", anim: "openbook", mode: "time", seconds: 45,
     cue: "Arms out front, palms together. Sweep the top arm open like a book and follow it with your eyes. Alternate sides." },
   { id: "desk-angels", name: "Desk angels", area: "upperback", anim: "deskangel", mode: "time", seconds: 40,
@@ -51,15 +51,15 @@ const STRETCH_LIBRARY = [
   { id: "chest-opener", name: "Chest opener", area: "chest", anim: "chestopen", mode: "time", seconds: 30,
     cue: "Clasp your hands behind your back, lift them slightly and squeeze your shoulder blades together." },
   { id: "overhead-reach", name: "Overhead reach", area: "fullbody", anim: "reachup", mode: "time", seconds: 30,
-    cue: "Interlace your fingers and press your palms to the ceiling — lengthen your whole spine." },
+    cue: "Interlace your fingers and press your palms to the ceiling - lengthen your whole spine." },
   { id: "stand-fold", name: "Stand & fold", area: "fullbody", anim: "standfold", mode: "time", seconds: 30,
     cue: "Stand and reach tall overhead, then slowly fold forward and let your head and arms hang." },
   { id: "wrist-stretch", name: "Wrist & finger stretch", area: "wrists", anim: "wrist", mode: "side", perSideSec: 15,
     cue: "Extend one arm, fingers up then down, and gently draw them back with your other hand." },
   { id: "wrist-circles", name: "Wrist circles", area: "wrists", anim: "wrist", mode: "time", seconds: 30,
-    cue: "Lift your hands off the desk and roll both wrists in slow circles — one way, then the other. Let the fingers stay loose." },
+    cue: "Lift your hands off the desk and roll both wrists in slow circles - one way, then the other. Let the fingers stay loose." },
   { id: "finger-fan", name: "Finger fans", area: "wrists", anim: "wrist", mode: "time", seconds: 20,
-    cue: "Spread your fingers wide like a fan, hold a beat, then make a loose fist. Repeat slowly — great after heavy typing." },
+    cue: "Spread your fingers wide like a fan, hold a beat, then make a loose fist. Repeat slowly - great after heavy typing." },
   { id: "box-breathing", name: "Box breathing", area: "mind", anim: "breath", mode: "breath", seconds: 64,
     cue: "Follow the ring: breathe in for 4, hold 4, out 4, hold 4. Shoulders soft, breathe into your belly." },
 ];
@@ -89,13 +89,13 @@ function buildRoutine(kind) {
     const secs = store.get("microDurationSec") || 60;
     return [{ id: "eye-rest", name: "Eye break", area: "eyes", anim: "eyes", mode: "time",
       seconds: secs, total: secs,
-      cue: "Look at something across the room or out a window (20+ feet away) for the whole break, blinking slowly. Twenty seconds isn't enough — give your eyes the full stretch." }];
+      cue: "Look at something across the room or out a window (20+ feet away) for the whole break, blinking slowly. Twenty seconds isn't enough - give your eyes the full stretch." }];
   }
   if (kind === "stand") {
     const mins = store.get("standMinutes") || 5;
     return [{ id: "stand-up", name: "Stand up", area: "fullbody", anim: "standfold", mode: "time",
       seconds: 30, total: 30,
-      cue: `Get on your feet and stay up for ~${mins} minute${mins === 1 ? "" : "s"} — stretch, grab water, or keep working standing.` }];
+      cue: `Get on your feet and stay up for ~${mins} minute${mins === 1 ? "" : "s"} - stretch, grab water, or keep working standing.` }];
   }
   if (kind === "breath") {
     const s = STRETCH_LIBRARY.find((x) => x.id === "box-breathing");
@@ -105,7 +105,7 @@ function buildRoutine(kind) {
   const enabled = STRETCH_LIBRARY.filter((s) => !disabled.includes(s.id));
   const stored = store.get("faultTally") || {};
   const tally = { ...stored };
-  // With no posture-fault history yet, nudge wrist work forward — keyboard strain
+  // With no posture-fault history yet, nudge wrist work forward - keyboard strain
   // doesn't show on the webcam, and hourly wrist relief is the evidence-backed dose.
   if (!Object.keys(tally).length) tally.wrists = 1;
   const last = new Set(store.get("lastRoutineIds") || []);
@@ -128,7 +128,7 @@ function buildRoutine(kind) {
   }
   store.set("lastRoutineIds", out.map((s) => s.id));
   // gentle decay so the targeting keeps adapting (decay the stored tally, not the
-  // scoring copy — the wrist fallback above must not leak into persistence)
+  // scoring copy - the wrist fallback above must not leak into persistence)
   const decayed = {};
   for (const k of Object.keys(stored)) decayed[k] = stored[k] * 0.8;
   store.set("faultTally", decayed);
@@ -151,7 +151,7 @@ const store = new Store({
     // breaks
     microEnabled: true,
     microIntervalMin: 20,
-    microDurationSec: 60, // evidence: 20-second eye breaks are too short — 1-2 min works
+    microDurationSec: 60, // evidence: 20-second eye breaks are too short - 1-2 min works
     longEnabled: true,
     longIntervalMin: 50,
     longDurationSec: 180,
@@ -159,7 +159,7 @@ const store = new Store({
     preBreakStyle: "pill", // pill | dim (gradually tint the screen as the break approaches)
     strictBreaks: false,
     showCursorTimer: true,
-    // sit / stand (opt-in — evidence: stand ~5 min every hour; alternate on a sit-stand desk)
+    // sit / stand (opt-in - evidence: stand ~5 min every hour; alternate on a sit-stand desk)
     standEnabled: false,
     standIntervalMin: 60,
     standMinutes: 5, // the stand goal communicated in the prompt
@@ -167,7 +167,7 @@ const store = new Store({
     standMode: "remind", // remind (stand up briefly) | alternate (sit-stand desk: switch positions)
     altSitMin: 45, // alternate mode: minutes seated before the "stand up" cue
     altStandMin: 15, // alternate mode: minutes standing before the "sit down" cue
-    // hydration (honest: no strong evidence — purely optional)
+    // hydration (honest: no strong evidence - purely optional)
     hydrationEnabled: false,
     hydrationIntervalMin: 60,
     // sound
@@ -212,7 +212,7 @@ const store = new Store({
 
 // ---------------------------------------------------------------------------
 // Crash / error reporting via Sentry (private dashboard). The DSN is a
-// write-only client key — safe to ship. No video, no PII: IP/username/hostname
+// write-only client key - safe to ship. No video, no PII: IP/username/hostname
 // are dropped and home-folder paths are scrubbed from stack traces. Opt-out via
 // Settings → "Send anonymous bug reports".
 // ---------------------------------------------------------------------------
@@ -260,7 +260,7 @@ function initSentry(force) {
 }
 initSentry();
 
-// Report but don't crash — better UX for a background app than hard-exiting.
+// Report but don't crash - better UX for a background app than hard-exiting.
 process.on("uncaughtException", (e) => { if (sentryOn) Sentry.captureException(e); });
 process.on("unhandledRejection", (e) => {
   if (!sentryOn) return;
@@ -302,7 +302,7 @@ let longRemaining = 0;
 let standRemaining = 0; // seconds until the next stand/move prompt (when standEnabled)
 let hydrationRemaining = 0;
 let standPhase = "sit"; // sit-stand desk alternation state (standMode "alternate")
-let altAwaiting = null; // "stand" | "sit" — cue sent, waiting for the user to confirm the switch
+let altAwaiting = null; // "stand" | "sit" - cue sent, waiting for the user to confirm the switch
 let standPromptedAt = 0; // when the last stand prompt fired (for presence-aware credit)
 let awaySince = 0; // start of the current no-person stretch (stand credit + longest-sit)
 let presentSince = 0; // start of the current continuous-presence stretch
@@ -409,7 +409,7 @@ function fmtMin(sec) {
 
 // macOS-reliable approach: keep a context menu set (so clicks open it natively
 // and it stays open), but only RE-SET it when something other than the volatile
-// posture state changes — so a good/bad flicker as the user reaches to click can
+// posture state changes - so a good/bad flicker as the user reaches to click can
 // never rebuild the menu out from under them (which made it "disappear").
 let lastMenuKey = null;
 let lastTrayKey = null;
@@ -454,7 +454,7 @@ function buildMenu() {
     { label: statusLabel, enabled: false },
     { label: nextBreak, enabled: false },
     ...(altAwaiting
-      ? [{ label: `✓ Yes — I'm ${altAwaiting === "stand" ? "standing" : "sitting"} now`, click: confirmSwitch }]
+      ? [{ label: `✓ Yes - I'm ${altAwaiting === "stand" ? "standing" : "sitting"} now`, click: confirmSwitch }]
       : []),
     { type: "separator" },
     { label: monitoring ? "Pause monitoring" : "Resume monitoring", click: () => setMonitoring(!monitoring) },
@@ -498,11 +498,11 @@ function updateTray() {
     // macOS shows a colored emoji next to a monochrome template icon
     tray.setTitle(monitoring && !clockedOut ? ` ${EMOJI[postureState] || ""}` : clockedOut ? " 💤" : "");
   } else {
-    // Windows/Linux have no tray title — convey status via a colored dot icon
+    // Windows/Linux have no tray title - convey status via a colored dot icon
     tray.setImage(makeStatusIcon(statusKey));
   }
-  tray.setToolTip(`${IS_DEV ? "Backbone (Dev)" : "Backbone"} — ${clockedOut ? "clocked out" : monitoring ? postureState : "paused"}`);
-  // NB: no menu rebuild here — the menu is built on click via buildMenu().
+  tray.setToolTip(`${IS_DEV ? "Backbone (Dev)" : "Backbone"} - ${clockedOut ? "clocked out" : monitoring ? postureState : "paused"}`);
+  // NB: no menu rebuild here - the menu is built on click via buildMenu().
 }
 
 // ---------------------------------------------------------------------------
@@ -510,7 +510,7 @@ function updateTray() {
 // ---------------------------------------------------------------------------
 const WINDEFS = {
   monitor: { file: "monitor.html", opts: { width: 480, height: 562, show: false, skipTaskbar: true,
-    resizable: false, title: "Backbone — Camera",
+    resizable: false, title: "Backbone - Camera",
     webPreferences: { backgroundThrottling: false, webSecurity: false } } },
   settings: { file: "settings.html", opts: { width: 480, height: 720, resizable: true } },
   setup: { file: "setup.html", opts: { width: 560, height: 640, resizable: false, center: true, title: "Welcome to Backbone" } },
@@ -639,14 +639,14 @@ function onPostureUpdate(p) {
     if (!awaySince) awaySince = Date.now();
     stillSince = 0;
   } else {
-    // present (good or bad) — presence bookkeeping shared by both states
+    // present (good or bad) - presence bookkeeping shared by both states
     if (awaySince) {
       // Coming back from an away stretch: if they actually left (3+ min) shortly
       // after a stand prompt, credit the stand; long absences end the sitting bout.
       const awayMs = Date.now() - awaySince;
       if (awayMs >= 3 * 60 * 1000) {
         if (standPromptedAt && awaySince - standPromptedAt >= 0 && awaySince - standPromptedAt < 10 * 60 * 1000) {
-          if (altAwaiting === "stand") confirmSwitch(); // they got up — treat it as "yes, standing"
+          if (altAwaiting === "stand") confirmSwitch(); // they got up - treat it as "yes, standing"
           else if (store.get("standMode") !== "alternate") stats.bumpDay("stands");
           standPromptedAt = 0;
         }
@@ -714,13 +714,13 @@ function maybeNudge() {
   }
 }
 
-// Rotating copy — a fixed message stops registering; variety helps long-term
+// Rotating copy - a fixed message stops registering; variety helps long-term
 // adherence (and it's cheap).
 const NUDGE_MSGS = [
-  "You've been slouching — reset your shoulders and lift your head.",
+  "You've been slouching - reset your shoulders and lift your head.",
   "Sit tall: ears over shoulders, shoulders over hips.",
   "Unround those shoulders and lengthen the back of your neck.",
-  "Quick reset — roll your shoulders back and lift your chest.",
+  "Quick reset - roll your shoulders back and lift your chest.",
   "Imagine a string pulling the crown of your head to the ceiling.",
   "Slide your chin back and let your spine stack up tall.",
 ];
@@ -728,7 +728,7 @@ let nudgeMsgIdx = 0;
 function nextNudgeMsg() { return NUDGE_MSGS[nudgeMsgIdx++ % NUDGE_MSGS.length]; }
 
 // Stand / move prompt (evidence: hourly stand prompts reliably cut sitting time).
-// Lightweight by design — a notification, sound and optional watch buzz; the
+// Lightweight by design - a notification, sound and optional watch buzz; the
 // "overlay" style shows a 30s break card instead. In "alternate" mode it cues
 // sit-stand desk users to switch position each interval instead.
 // Seconds until the next stand event for the current mode/phase.
@@ -742,7 +742,7 @@ function startStandPrompt() {
   stats.bumpDay("standPrompts");
   standPromptedAt = Date.now();
   if (store.get("standMode") === "alternate") {
-    // Cue the switch, then WAIT for the user to confirm ("yes, I switched") —
+    // Cue the switch, then WAIT for the user to confirm ("yes, I switched") -
     // the next phase is timed from the confirmation, not from the cue. Gentle
     // re-prompt every 5 min until they do.
     altAwaiting = altAwaiting || (standPhase === "stand" ? "sit" : "stand");
@@ -756,9 +756,9 @@ function startStandPrompt() {
   const mins = store.get("standMinutes") || 5;
   if (store.get("standStyle") === "overlay") { startBreak("stand"); return; }
   if (store.get("soundEnabled")) playSound("nudge");
-  notify("Stand up 🧍", `Get on your feet for ~${mins} min — stretch, grab water, or keep working standing.`);
+  notify("Stand up 🧍", `Get on your feet for ~${mins} min - stretch, grab water, or keep working standing.`);
   if (store.get("watchBreaks"))
-    pushWatch("Stand up", `On your feet for ~${mins} min — move a little.`,
+    pushWatch("Stand up", `On your feet for ~${mins} min - move a little.`,
       { priority: Math.max(2, store.get("watchPriority") - 1), tags: "standing_person" });
 }
 
@@ -768,7 +768,7 @@ function promptSwitch(target) {
   const n = new Notification({
     title: up ? "Switch to standing 🧍" : "Switch to sitting 🪑",
     body: (up ? "Raise the desk. " : "Lower the desk and take a seat. ") +
-      "Click here (or use the menu-bar ✓) once you've switched — I'll time the next stretch from then.",
+      "Click here (or use the menu-bar ✓) once you've switched - I'll time the next stretch from then.",
   });
   n.on("click", confirmSwitch);
   n.show();
@@ -778,7 +778,7 @@ function promptSwitch(target) {
       { priority: Math.max(2, store.get("watchPriority") - 1), tags: up ? "standing_person" : "chair" });
 }
 
-// The user confirmed they actually switched position — start the new phase's clock.
+// The user confirmed they actually switched position - start the new phase's clock.
 function confirmSwitch() {
   if (!altAwaiting) return;
   standPhase = altAwaiting;
@@ -786,7 +786,7 @@ function confirmSwitch() {
   if (standPhase === "stand") stats.bumpDay("stands");
   standRemaining = standCycleSecs();
   notify(standPhase === "stand" ? "Standing ✓" : "Sitting ✓",
-    `Nice — I'll cue the next switch in ~${Math.round(standRemaining / 60)} min.`, true);
+    `Nice - I'll cue the next switch in ~${Math.round(standRemaining / 60)} min.`, true);
   updateTray();
   refreshMenu();
 }
@@ -810,19 +810,19 @@ function recordSittingBout() {
   if (mins >= 5) stats.noteLongestSit(mins);
 }
 
-// Dynamic-posture nudge: even "good" posture held rigidly is bad — Cornell/ANSI
+// Dynamic-posture nudge: even "good" posture held rigidly is bad - Cornell/ANSI
 // explicitly recommend frequent posture changes over any single static pose. If
 // the body has been essentially motionless for varietyMin, give one gentle cue.
 const VARIETY_MSGS = [
-  "You've been in one position a while — shift, recline, or roll your shoulders.",
+  "You've been in one position a while - shift, recline, or roll your shoulders.",
   "Posture check: the best posture is the next one. Change it up.",
-  "Time to move a little — re-settle into a fresh position.",
-  "Shift your hips, change your lean — your spine likes variety.",
+  "Time to move a little - re-settle into a fresh position.",
+  "Shift your hips, change your lean - your spine likes variety.",
 ];
 let varietyMsgIdx = 0;
 function maybeVarietyNudge(p) {
   if (!store.get("postureVarietyEnabled")) return;
-  if (p.move == null) return; // detector doesn't report movement — feature inert
+  if (p.move == null) return; // detector doesn't report movement - feature inert
   const now = Date.now();
   if (p.move > 0.012 || !stillSince) { stillSince = now; return; }
   if (now - stillSince < Math.max(5, store.get("varietyMin")) * 60000) return;
@@ -844,7 +844,7 @@ function maybeWatchSlouch() {
   if (lastWatchSlouchAt && Date.now() - lastWatchSlouchAt < thresholdMs) return; // re-buzz cadence
   if (sched.isQuietNow(store.store)) return;
   lastWatchSlouchAt = Date.now();
-  pushWatch("Sit up tall 🪑", "You've been slouching for a while — lengthen your spine and roll your shoulders back.", {
+  pushWatch("Sit up tall 🪑", "You've been slouching for a while - lengthen your spine and roll your shoulders back.", {
     priority: store.get("watchPriority"),
     tags: "warning",
   });
@@ -855,7 +855,7 @@ function maybeWatchSlouch() {
 // ---------------------------------------------------------------------------
 function flashCmd(cmd) {
   // Track which on-screen alerts are active. CRITICAL: only show/position/elevate
-  // the overlay window ONCE per visible session — never on every posture frame,
+  // the overlay window ONCE per visible session - never on every posture frame,
   // which hammered the window server and could freeze the Mac.
   if (cmd.type === "glow") glowOn = !!cmd.on;
   else if (cmd.type === "cue") cueOn = !!cmd.on;
@@ -886,7 +886,7 @@ function flashCmd(cmd) {
     return;
   }
 
-  // An alert is active again — cancel any pending hide so the window stays put.
+  // An alert is active again - cancel any pending hide so the window stays put.
   if (flashHideTimer) { clearTimeout(flashHideTimer); flashHideTimer = null; }
   const w = getWin("flash");
   const apply = () => {
@@ -905,7 +905,7 @@ function flashCmd(cmd) {
   else apply();
 }
 
-// Clear every on-screen alert (glow, cue, lean-back HUD) — used whenever posture
+// Clear every on-screen alert (glow, cue, lean-back HUD) - used whenever posture
 // processing stops (paused, idle, clocked out, break) so nothing stays frozen.
 function clearOverlayAlerts() {
   proximityOn = false;
@@ -960,7 +960,7 @@ function startBreak(kind, manual) {
     pushWatch(
       kind === "long" ? "Time to stretch" : kind === "stand" ? "Stand up" : "Eye break",
       kind === "long" ? "Stand up and stretch for a few minutes."
-        : kind === "stand" ? `On your feet for ~${store.get("standMinutes") || 5} min — move a little.`
+        : kind === "stand" ? `On your feet for ~${store.get("standMinutes") || 5} min - move a little.`
         : "Look at something far away for a minute.",
       { priority: Math.max(2, store.get("watchPriority") - 1),
         tags: kind === "long" ? "person_in_lotus_position" : kind === "stand" ? "standing_person" : "eyes" }
@@ -1081,7 +1081,7 @@ function tick() {
   } else if (!nowIdle && isIdle) {
     isIdle = false;
     // Sitting still pauses the countdown (above); only a real walk-away (5+ min)
-    // should reset it — otherwise reading/watching for a minute kept wiping all
+    // should reset it - otherwise reading/watching for a minute kept wiping all
     // progress and the break never fired.
     if (store.get("idleResetBreaks") && Date.now() - idleStartedAt >= 5 * 60 * 1000) resetBreakTimers();
   }
@@ -1141,7 +1141,7 @@ function tick() {
   }
 
   // Re-set the menu only when its non-posture content changes (≈ once a minute
-  // as the break countdown ticks) — never on a posture flicker.
+  // as the break countdown ticks) - never on a posture flicker.
   if (menuKey() !== lastMenuKey) refreshMenu();
 }
 
@@ -1154,7 +1154,7 @@ function asciiHeader(s) {
 }
 
 // ---------------------------------------------------------------------------
-// Bug reporting helpers (delivery via Sentry — see initSentry near the top).
+// Bug reporting helpers (delivery via Sentry - see initSentry near the top).
 // Dedup + throttle + per-session cap so a looping error can't flood the project.
 // ---------------------------------------------------------------------------
 let reportCount = 0, lastReportAt = 0;
@@ -1173,7 +1173,7 @@ function reportBug(context, message, stack) {
 }
 
 function reportManual(note) {
-  if (!initSentry(true)) return; // user clicked "send" — treat as consent for this report
+  if (!initSentry(true)) return; // user clicked "send" - treat as consent for this report
   Sentry.captureMessage("User report: " + String(note || "(no note)").slice(0, 1000), "info");
 }
 
@@ -1207,7 +1207,7 @@ function pushWatch(title, body, opts = {}) {
     }
   );
   req.on("error", (e) => { console.error("[watch] push failed:", e.message); done(false, e.message); });
-  req.setTimeout(8000, () => req.destroy(new Error("Request timed out — check your connection.")));
+  req.setTimeout(8000, () => req.destroy(new Error("Request timed out - check your connection.")));
   req.write(data);
   req.end();
 }
@@ -1232,7 +1232,7 @@ ipcMain.on("monitor:ready", () => {
   if (store.get("startMonitoringOnLaunch") && store.get("setupComplete")) setMonitoring(true);
 });
 ipcMain.on("monitor:error", (_e, msg) => {
-  notify("Backbone — camera error", String(msg));
+  notify("Backbone - camera error", String(msg));
   sendSetup("setup:cameraError", String(msg)); // let onboarding offer to skip calibration
 });
 // Rough screen-distance estimate from the calibrated inter-eye spacing: the
@@ -1283,7 +1283,7 @@ const SETTING_MINS = { microIntervalMin: 1, longIntervalMin: 5, microDurationSec
   watchSlouchSec: 15, standIntervalMin: 10, standMinutes: 1, varietyMin: 5, hydrationIntervalMin: 10,
   altSitMin: 10, altStandMin: 5 };
 ipcMain.handle("settings:set", (_e, patch) => {
-  // Clamp numeric settings — a cleared field arrives as 0 and a 0 interval/hold
+  // Clamp numeric settings - a cleared field arrives as 0 and a 0 interval/hold
   // would fire a break/nudge every tick (a storm). Floor each to a safe minimum.
   for (const [k, lo] of Object.entries(SETTING_MINS)) {
     if (k in patch) { const n = Number(patch[k]); patch[k] = Number.isFinite(n) ? Math.max(lo, n) : lo; }
@@ -1348,7 +1348,7 @@ ipcMain.on("report:send", (e, note) => {
   reportManual(note);
   const w = BrowserWindow.fromWebContents(e.sender);
   if (w && !w.isDestroyed()) w.close();
-  notify("Report sent ✓", "Thanks — this helps me fix it.", true);
+  notify("Report sent ✓", "Thanks - this helps me fix it.", true);
 });
 
 // ---- first-run setup wizard ----------------------------------------------
@@ -1406,7 +1406,7 @@ function registerShortcuts() {
     try { ok = globalShortcut.register(accel, fn); } catch (_) {}
     if (!ok) failed.push(accel);
   }
-  // If another app already owns one of these, it silently won't fire — surface it.
+  // If another app already owns one of these, it silently won't fire - surface it.
   if (failed.length && sentryOn) Sentry.captureMessage("Global shortcut registration failed: " + failed.join(", "), "warning");
 }
 
@@ -1424,7 +1424,7 @@ function initAutoUpdate() {
     updateTray();
     const n = new Notification({
       title: "Backbone update ready",
-      body: `Version ${info.version} downloaded — click to restart and install.`,
+      body: `Version ${info.version} downloaded - click to restart and install.`,
     });
     n.on("click", installUpdate);
     n.show();

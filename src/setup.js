@@ -71,11 +71,11 @@ $("#wideFov").addEventListener("change", (e) => window.api.invoke("settings:set"
 // ---- live status (the camera window handles calibration itself) -----------
 window.api.on("setup:posture", ({ state, pos }) => {
   if (state === "no-person")
-    setStatus("camStatus", "camText", "warn", "Camera on — but I can't see you. Sit in frame.");
-  else setStatus("camStatus", "camText", "ok", "Camera on — I can see you ✓");
+    setStatus("camStatus", "camText", "warn", "Camera on - but I can't see you. Sit in frame.");
+  else setStatus("camStatus", "camText", "ok", "Camera on - I can see you ✓");
   if (pos && !calibrated) {
     const msg = pos.ready
-      ? "In position — press Calibrate on the camera window"
+      ? "In position - press Calibrate on the camera window"
       : !pos.inFrame
       ? "Fill the camera guide with your head & shoulders"
       : !pos.level
@@ -95,7 +95,7 @@ window.api.on("setup:cameraError", (msg) => {
 window.api.on("setup:calibrated", (deskCheck) => {
   calibrated = true;
   const warnings = renderDeskCheck(deskCheck);
-  setStatus("calStatus", "calText", "ok", warnings ? "Calibrated ✓ — one desk tweak worth making:" : "Calibrated ✓ — moving on…");
+  setStatus("calStatus", "calText", "ok", warnings ? "Calibrated ✓ - one desk tweak worth making:" : "Calibrated ✓ - moving on…");
   if (i === 2) {
     $("#next").disabled = false;
     // If the desk check flagged something, stay so they can read it; else move on.
@@ -111,14 +111,14 @@ function renderDeskCheck(dc) {
   const items = [];
   if (dc.distanceIn != null) {
     items.push(dc.tooClose
-      ? ["warn", `You're sitting ≈${dc.distanceIn}″ from the screen — guidelines say at least 20″ (20–40″ is ideal). Push the screen back or scoot back a touch.`]
-      : ["ok", `Screen distance ≈${dc.distanceIn}″ — within the recommended 20–40″.`]);
+      ? ["warn", `You're sitting ≈${dc.distanceIn}″ from the screen - guidelines say at least 20″ (20–40″ is ideal). Push the screen back or scoot back a touch.`]
+      : ["ok", `Screen distance ≈${dc.distanceIn}″ - within the recommended 20–40″.`]);
   }
   items.push(dc.cameraBelow
-    ? ["warn", "Your camera (likely your screen) sits below eye level — raise the display so the top of the screen is at eye level; your neck will thank you."]
-    : ["ok", "Screen height looks good — top of screen near eye level."]);
+    ? ["warn", "Your camera (likely your screen) sits below eye level - raise the display so the top of the screen is at eye level; your neck will thank you."]
+    : ["ok", "Screen height looks good - top of screen near eye level."]);
   items.push(dc.cameraOffCentre
-    ? ["warn", "Camera is off to one side — if that's your main screen, put it directly in front of you to avoid twisting."]
+    ? ["warn", "Camera is off to one side - if that's your main screen, put it directly in front of you to avoid twisting."]
     : ["ok", "Screen is straight ahead of you."]);
   items.push(["info", "Also worth a glance: forearms level with the desk (~90–100° elbow), feet flat, ears over shoulders."]);
   list.innerHTML = "";
@@ -162,7 +162,7 @@ $("#testWatch").addEventListener("click", () => {
 });
 window.api.on("watch:testResult", ({ ok, detail }) => {
   $("#watchStatus").style.display = "flex";
-  if (ok) setStatus("watchStatus", "watchText", "ok", "Sent ✓ — check your phone & Watch. No buzz? Make sure ntfy is subscribed to your topic.");
+  if (ok) setStatus("watchStatus", "watchText", "ok", "Sent ✓ - check your phone & Watch. No buzz? Make sure ntfy is subscribed to your topic.");
   else setStatus("watchStatus", "watchText", "warn", "Couldn't send: " + (detail || "unknown error"));
 });
 

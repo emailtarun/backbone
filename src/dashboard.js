@@ -1,5 +1,5 @@
 const el = (id) => document.getElementById(id);
-const pct = (v) => (v == null ? "—" : v + "%");
+const pct = (v) => (v == null ? "–" : v + "%");
 const color = (v) => (v == null ? "#8e8e93" : v >= 75 ? "#34c759" : v >= 50 ? "#ffcc00" : "#ff6b5e");
 
 function barChart(data) {
@@ -23,7 +23,7 @@ function barChart(data) {
 function sparkline(series) {
   const W = 640, H = 90, pad = 8;
   const pts = series.filter((s) => s.pct != null);
-  if (pts.length < 2) return `<div style="opacity:.5;font-size:12px;padding:8px 0">Not enough data yet — keep sitting.</div>`;
+  if (pts.length < 2) return `<div style="opacity:.5;font-size:12px;padding:8px 0">Not enough data yet - keep sitting.</div>`;
   const xs = (i) => pad + (i / (pts.length - 1)) * (W - pad * 2);
   const ys = (v) => H - pad - (v / 100) * (H - pad * 2);
   let d = "";
