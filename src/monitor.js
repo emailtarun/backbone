@@ -474,6 +474,20 @@ window.api.on("monitor:baseline", (b) => {
   calBtn.disabled = false;
 });
 
+// Camera changed: the old baseline is for the old camera's geometry, so drop it
+// and fall back to the positioning-coach flow until they calibrate again.
+window.api.on("monitor:clearBaseline", () => {
+  baseline = null;
+  feat = null;
+  badState = false;
+  prevRaw = null;
+  moveEma = 0;
+  calibrating = null;
+  document.body.classList.remove("calibrated");
+  calBtn.textContent = "Calibrate - sit tall";
+  calBtn.disabled = true; // the coaching flow re-enables it once they're in position
+});
+
 // ---- sound / voice (this hidden window is our audio sink) -----------------
 let actx = null;
 function chime(kind, volume) {

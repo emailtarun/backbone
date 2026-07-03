@@ -419,7 +419,7 @@ function menuKey() {
     nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}|${store.get("standEnabled") ? fmtMin(standRemaining) : ""}`;
     if (snoozeUntil > Date.now()) nb = "snooze";
   }
-  return [monitoring, clockedOut, updateReady, updateVersion, nb, standPhase, altAwaiting || ""].join("~");
+  return [monitoring, clockedOut, updateReady, updateVersion, nb, standPhase, altAwaiting || "", store.get("cameraId") || ""].join("~");
 }
 function refreshMenu() {
   if (!tray) return;
@@ -460,6 +460,18 @@ function buildMenu() {
     { label: monitoring ? "Pause monitoring" : "Resume monitoring", click: () => setMonitoring(!monitoring) },
     { label: "Calibrate posture (sit up straight)", enabled: monitoring, click: calibrate },
     { label: "Show camera / posture view", click: () => showWin("monitor") },
+    {
+      label: "Camera",
+      submenu: [
+        { label: "System default", type: "radio", checked: !store.get("cameraId"), click: () => switchCamera("") },
+        ...(lastCameras.cameras || []).map((c) => ({
+          label: c.label || "Camera",
+          type: "radio",
+          checked: (store.get("cameraId") || "") === c.id,
+          click: () => switchCamera(c.id),
+        })),
+      ],
+    },
     { type: "separator" },
     { label: `Take a stretch break  ${MOD}B`, click: () => startBreak("long", true) },
     { label: "Take an eye break", click: () => startBreak("micro", true) },
@@ -601,6 +613,26 @@ function calibrate() {
     w.webContents.send("monitor:calibrate");
     notify("Calibrating posture", "Sit up straight and look at your screen…", true);
   }
+}
+
+// A different camera sees different geometry, so the old baseline is invalid:
+// clear it and walk them through recalibration via the coaching flow.
+function invalidateCalibration() {
+  store.delete("baseline");
+  store.delete("deskCheck");
+  const w = wins.monitor;
+  if (w && w.webContents) w.webContents.send("monitor:clearBaseline");
+  showWin("monitor"); // coaching flow guides them to the Calibrate button
+  notify("Camera switched", "Quick recalibration needed: sit tall, then press Calibrate on the camera window.", true);
+  refreshMenu();
+}
+
+// Switch cameras from the tray.
+function switchCamera(id) {
+  if ((store.get("cameraId") || "") === (id || "")) return;
+  store.set("cameraId", id || "");
+  pushConfig(); // the monitor renderer swaps the feed
+  invalidateCalibration();
 }
 
 function sendSetup(channel, data) {
@@ -1288,7 +1320,11 @@ ipcMain.handle("settings:set", (_e, patch) => {
   for (const [k, lo] of Object.entries(SETTING_MINS)) {
     if (k in patch) { const n = Number(patch[k]); patch[k] = Number.isFinite(n) ? Math.max(lo, n) : lo; }
   }
+  const prevCam = store.get("cameraId") || "";
   for (const [k, v] of Object.entries(patch)) store.set(k, v);
+  // Camera changed after setup: the calibration belongs to the old camera.
+  if ("cameraId" in patch && (store.get("cameraId") || "") !== prevCam &&
+      store.get("setupComplete") && store.get("baseline")) invalidateCalibration();
   if ("microIntervalMin" in patch) microRemaining = store.get("microIntervalMin") * 60;
   if ("longIntervalMin" in patch) longRemaining = store.get("longIntervalMin") * 60;
   if (["standIntervalMin", "standEnabled", "standMode", "altSitMin", "altStandMin"].some((k) => k in patch)) {
@@ -1334,11 +1370,13 @@ ipcMain.on("break:test", (_e, kind) => startBreak(kind || "long", true));
 // ---- camera list (from the monitor renderer) -----------------------------
 let lastCameras = { cameras: [], active: "" };
 ipcMain.on("cameras:list", (_e, data) => {
+  const changed = JSON.stringify((data || {}).cameras) !== JSON.stringify(lastCameras.cameras);
   lastCameras = data || lastCameras;
   ["setup", "settings"].forEach((n) => {
     const w = wins[n];
     if (w && !w.isDestroyed()) w.webContents.send("cameras:list", lastCameras);
   });
+  if (changed) refreshMenu(); // keep the tray's Camera submenu current
 });
 ipcMain.handle("cameras:get", () => lastCameras);
 
