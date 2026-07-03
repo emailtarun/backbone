@@ -109,7 +109,7 @@
       <div class="row stack"><label>Warning style<div class="hint">the gentle dim eases you out of work — people skip it less</div></label><div class="seg" id="seg-preBreakStyle"></div></div>
       <div class="row"><label>Show cursor countdown</label><span class="switch"><input type="checkbox" data-key="showCursorTimer" /><span class="slider"></span></span></div>
       <div class="row"><label>Strict breaks<div class="hint">no skip / postpone</div></label><span class="switch"><input type="checkbox" data-key="strictBreaks" /><span class="slider"></span></span></div>
-      <div class="row"><label>Water reminder<div class="hint">honest note: no strong evidence — purely optional</div></label><span class="switch"><input type="checkbox" data-key="hydrationEnabled" /><span class="slider"></span></span></div>
+      <div class="row"><label>Water reminder<div class="hint">a gentle nudge to take a few sips</div></label><span class="switch"><input type="checkbox" data-key="hydrationEnabled" /><span class="slider"></span></span></div>
       <div class="row"><label>Water interval<div class="hint">minutes</div></label><input type="number" data-key="hydrationIntervalMin" min="10" max="240" style="width:70px" /></div>
     </div>
 
@@ -117,10 +117,12 @@
     <div class="card">
       <div class="row"><label>Stand reminders<div class="hint">evidence-backed: getting up ~5 min every hour cuts sitting time. Turn on if you have a sit-stand desk or just want stand-up nudges</div></label><span class="switch"><input type="checkbox" data-key="standEnabled" /><span class="slider"></span></span></div>
       <div id="standOpts">
-        <div class="row stack"><label>Mode<div class="hint">“Alternate” cues sit-stand desk users to switch position each interval — don’t stand all day either</div></label><div class="seg" id="seg-standMode"></div></div>
-        <div class="row"><label>Remind every<div class="hint">minutes</div></label><input type="number" data-key="standIntervalMin" min="10" max="180" style="width:70px" /></div>
-        <div class="row"><label>Stand goal<div class="hint">minutes on your feet per reminder</div></label><input type="number" data-key="standMinutes" min="1" max="30" style="width:70px" /></div>
-        <div class="row stack"><label>Reminder style</label><div class="seg" id="seg-standStyle"></div></div>
+        <div class="row stack"><label>Mode<div class="hint">“Alternate” runs a sit → stand → sit cycle for desk switchers; confirm each switch via the notification or menu-bar ✓ and the next timer starts from your confirmation</div></label><div class="seg" id="seg-standMode"></div></div>
+        <div class="row remind-only"><label>Remind every<div class="hint">minutes</div></label><input type="number" data-key="standIntervalMin" min="10" max="180" style="width:70px" /></div>
+        <div class="row remind-only"><label>Stand goal<div class="hint">minutes on your feet per reminder</div></label><input type="number" data-key="standMinutes" min="1" max="30" style="width:70px" /></div>
+        <div class="row remind-only stack"><label>Reminder style</label><div class="seg" id="seg-standStyle"></div></div>
+        <div class="row alt-only"><label>Sit for<div class="hint">minutes seated before the “stand up” cue</div></label><input type="number" data-key="altSitMin" min="10" max="180" style="width:70px" /></div>
+        <div class="row alt-only"><label>Stand for<div class="hint">minutes standing before the “sit down” cue</div></label><input type="number" data-key="altStandMin" min="5" max="120" style="width:70px" /></div>
       </div>
     </div>
 

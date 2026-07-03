@@ -192,10 +192,14 @@ function renderPresets() {
   box.appendChild(c);
 }
 
-// show/hide the stand options with the toggle
+// show/hide the stand options with the toggle, and the mode-specific rows
 function syncStandOpts() {
   const opts = $("#standOpts");
-  if (opts) opts.style.display = cfg.standEnabled ? "" : "none";
+  if (!opts) return;
+  opts.style.display = cfg.standEnabled ? "" : "none";
+  const alt = cfg.standMode === "alternate";
+  document.querySelectorAll("#standOpts .remind-only").forEach((el) => (el.style.display = alt ? "none" : ""));
+  document.querySelectorAll("#standOpts .alt-only").forEach((el) => (el.style.display = alt ? "" : "none"));
 }
 
 // ---- break overlay theme picker with live preview ------------------------
@@ -232,7 +236,7 @@ function renderThemePicker() {
   renderLibrary();
   renderSeg("nudgeStyle", [["notification", "Notification"], ["flash", "Flash"], ["voice", "Voice"], ["silent", "Silent"]]);
   renderSeg("preBreakStyle", [["pill", "Cursor pill"], ["dim", "Gentle dim"]]);
-  renderSeg("standMode", [["remind", "Stand-up reminder"], ["alternate", "Alternate sit/stand"]]);
+  renderSeg("standMode", [["remind", "Stand-up reminder"], ["alternate", "Alternate sit/stand"]], { onPick: syncStandOpts });
   renderSeg("standStyle", [["prompt", "Notification"], ["overlay", "Full-screen card"]]);
   renderPresets();
   syncStandOpts();

@@ -159,12 +159,14 @@ const store = new Store({
     preBreakStyle: "pill", // pill | dim (gradually tint the screen as the break approaches)
     strictBreaks: false,
     showCursorTimer: true,
-    // sit / stand (opt-in — evidence: stand ~5 min every hour; alternate hourly on a sit-stand desk)
+    // sit / stand (opt-in — evidence: stand ~5 min every hour; alternate on a sit-stand desk)
     standEnabled: false,
     standIntervalMin: 60,
     standMinutes: 5, // the stand goal communicated in the prompt
     standStyle: "prompt", // prompt (notification) | overlay (30s break card)
-    standMode: "remind", // remind (stand up briefly) | alternate (sit-stand desk: switch hourly)
+    standMode: "remind", // remind (stand up briefly) | alternate (sit-stand desk: switch positions)
+    altSitMin: 45, // alternate mode: minutes seated before the "stand up" cue
+    altStandMin: 15, // alternate mode: minutes standing before the "sit down" cue
     // hydration (honest: no strong evidence — purely optional)
     hydrationEnabled: false,
     hydrationIntervalMin: 60,
@@ -300,6 +302,7 @@ let longRemaining = 0;
 let standRemaining = 0; // seconds until the next stand/move prompt (when standEnabled)
 let hydrationRemaining = 0;
 let standPhase = "sit"; // sit-stand desk alternation state (standMode "alternate")
+let altAwaiting = null; // "stand" | "sit" — cue sent, waiting for the user to confirm the switch
 let standPromptedAt = 0; // when the last stand prompt fired (for presence-aware credit)
 let awaySince = 0; // start of the current no-person stretch (stand credit + longest-sit)
 let presentSince = 0; // start of the current continuous-presence stretch
@@ -416,7 +419,7 @@ function menuKey() {
     nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}|${store.get("standEnabled") ? fmtMin(standRemaining) : ""}`;
     if (snoozeUntil > Date.now()) nb = "snooze";
   }
-  return [monitoring, clockedOut, updateReady, updateVersion, nb].join("~");
+  return [monitoring, clockedOut, updateReady, updateVersion, nb, standPhase, altAwaiting || ""].join("~");
 }
 function refreshMenu() {
   if (!tray) return;
@@ -431,7 +434,13 @@ function buildMenu() {
     const parts = [];
     if (store.get("longEnabled")) parts.push(`long in ${fmtMin(longRemaining)}`);
     if (store.get("microEnabled")) parts.push(`micro in ${fmtMin(microRemaining)}`);
-    if (store.get("standEnabled")) parts.push(`stand in ${fmtMin(standRemaining)}`);
+    if (store.get("standEnabled")) {
+      if (store.get("standMode") === "alternate")
+        parts.push(altAwaiting
+          ? `switch to ${altAwaiting === "stand" ? "standing" : "sitting"}…`
+          : `${standPhase === "stand" ? "standing" : "sitting"} · switch in ${fmtMin(standRemaining)}`);
+      else parts.push(`stand in ${fmtMin(standRemaining)}`);
+    }
     nextBreak = parts.join(" · ");
     if (snoozeUntil > Date.now()) nextBreak = `snoozed ${fmtMin((snoozeUntil - Date.now()) / 1000)}`;
   }
@@ -444,6 +453,9 @@ function buildMenu() {
   return Menu.buildFromTemplate([
     { label: statusLabel, enabled: false },
     { label: nextBreak, enabled: false },
+    ...(altAwaiting
+      ? [{ label: `✓ Yes — I'm ${altAwaiting === "stand" ? "standing" : "sitting"} now`, click: confirmSwitch }]
+      : []),
     { type: "separator" },
     { label: monitoring ? "Pause monitoring" : "Resume monitoring", click: () => setMonitoring(!monitoring) },
     { label: "Calibrate posture (sit up straight)", enabled: monitoring, click: calibrate },
@@ -634,7 +646,8 @@ function onPostureUpdate(p) {
       const awayMs = Date.now() - awaySince;
       if (awayMs >= 3 * 60 * 1000) {
         if (standPromptedAt && awaySince - standPromptedAt >= 0 && awaySince - standPromptedAt < 10 * 60 * 1000) {
-          stats.bumpDay("stands");
+          if (altAwaiting === "stand") confirmSwitch(); // they got up — treat it as "yes, standing"
+          else if (store.get("standMode") !== "alternate") stats.bumpDay("stands");
           standPromptedAt = 0;
         }
         recordSittingBout();
@@ -718,31 +731,64 @@ function nextNudgeMsg() { return NUDGE_MSGS[nudgeMsgIdx++ % NUDGE_MSGS.length]; 
 // Lightweight by design — a notification, sound and optional watch buzz; the
 // "overlay" style shows a 30s break card instead. In "alternate" mode it cues
 // sit-stand desk users to switch position each interval instead.
+// Seconds until the next stand event for the current mode/phase.
+function standCycleSecs() {
+  if (store.get("standMode") === "alternate")
+    return Math.max(5, standPhase === "stand" ? store.get("altStandMin") || 15 : store.get("altSitMin") || 45) * 60;
+  return Math.max(10, store.get("standIntervalMin")) * 60;
+}
+
 function startStandPrompt() {
-  standRemaining = Math.max(10, store.get("standIntervalMin")) * 60;
   stats.bumpDay("standPrompts");
   standPromptedAt = Date.now();
-  if (sched.isQuietNow(store.store)) return;
-  const mins = store.get("standMinutes") || 5;
   if (store.get("standMode") === "alternate") {
-    standPhase = standPhase === "stand" ? "sit" : "stand";
-    const up = standPhase === "stand";
-    if (store.get("soundEnabled")) playSound("nudge");
-    notify(up ? "Switch to standing 🧍" : "Switch to sitting 🪑",
-      up ? "Raise the desk — alternating hourly beats standing (or sitting) all day."
-         : "Lower the desk and take a seat — your legs have earned it.");
-    if (store.get("watchBreaks"))
-      pushWatch(up ? "Switch to standing" : "Switch to sitting",
-        up ? "Raise the desk for the next stretch of work." : "Lower the desk and sit for a while.",
-        { priority: Math.max(2, store.get("watchPriority") - 1), tags: up ? "standing_person" : "chair" });
+    // Cue the switch, then WAIT for the user to confirm ("yes, I switched") —
+    // the next phase is timed from the confirmation, not from the cue. Gentle
+    // re-prompt every 5 min until they do.
+    altAwaiting = altAwaiting || (standPhase === "stand" ? "sit" : "stand");
+    standRemaining = 5 * 60;
+    if (!sched.isQuietNow(store.store)) promptSwitch(altAwaiting);
+    refreshMenu(); // surfaces the "✓ I've switched" menu item
     return;
   }
+  standRemaining = standCycleSecs();
+  if (sched.isQuietNow(store.store)) return;
+  const mins = store.get("standMinutes") || 5;
   if (store.get("standStyle") === "overlay") { startBreak("stand"); return; }
   if (store.get("soundEnabled")) playSound("nudge");
   notify("Stand up 🧍", `Get on your feet for ~${mins} min — stretch, grab water, or keep working standing.`);
   if (store.get("watchBreaks"))
     pushWatch("Stand up", `On your feet for ~${mins} min — move a little.`,
       { priority: Math.max(2, store.get("watchPriority") - 1), tags: "standing_person" });
+}
+
+function promptSwitch(target) {
+  const up = target === "stand";
+  if (store.get("soundEnabled")) playSound("nudge");
+  const n = new Notification({
+    title: up ? "Switch to standing 🧍" : "Switch to sitting 🪑",
+    body: (up ? "Raise the desk. " : "Lower the desk and take a seat. ") +
+      "Click here (or use the menu-bar ✓) once you've switched — I'll time the next stretch from then.",
+  });
+  n.on("click", confirmSwitch);
+  n.show();
+  if (store.get("watchBreaks"))
+    pushWatch(up ? "Switch to standing" : "Switch to sitting",
+      up ? "Raise the desk for the next stretch of work." : "Lower the desk and sit for a while.",
+      { priority: Math.max(2, store.get("watchPriority") - 1), tags: up ? "standing_person" : "chair" });
+}
+
+// The user confirmed they actually switched position — start the new phase's clock.
+function confirmSwitch() {
+  if (!altAwaiting) return;
+  standPhase = altAwaiting;
+  altAwaiting = null;
+  if (standPhase === "stand") stats.bumpDay("stands");
+  standRemaining = standCycleSecs();
+  notify(standPhase === "stand" ? "Standing ✓" : "Sitting ✓",
+    `Nice — I'll cue the next switch in ~${Math.round(standRemaining / 60)} min.`, true);
+  updateTray();
+  refreshMenu();
 }
 
 // After 30s of sustained slouching, play a small reminder sound every few seconds
@@ -887,7 +933,8 @@ function playSound(type, text) {
 function resetBreakTimers() {
   microRemaining = store.get("microIntervalMin") * 60;
   longRemaining = store.get("longIntervalMin") * 60;
-  standRemaining = store.get("standIntervalMin") * 60;
+  altAwaiting = null;
+  standRemaining = standCycleSecs();
   hydrationRemaining = store.get("hydrationIntervalMin") * 60;
   warnShownFor = null;
   hideCursorTimer();
@@ -951,12 +998,12 @@ function endBreak(kind, skipped) {
     longRemaining = store.get("longIntervalMin") * 60;
     // a long break also satisfies the micro + stand timers (the routine involves standing)
     microRemaining = store.get("microIntervalMin") * 60;
-    standRemaining = store.get("standIntervalMin") * 60;
+    if (!altAwaiting) standRemaining = standCycleSecs();
     if (skipped) stats.bumpDay("skipped");
     if (!skipped) { recordSittingBout(); presentSince = 0; } // they stood for the routine
   } else if (kind === "stand") {
     if (!skipped) { stats.bumpDay("stands"); recordSittingBout(); presentSince = 0; }
-    standRemaining = store.get("standIntervalMin") * 60;
+    standRemaining = standCycleSecs();
   } else if (kind === "breath") {
     // a manual breather doesn't reset any schedule
   } else {
@@ -1233,7 +1280,8 @@ ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
 ipcMain.handle("settings:get", () => ({ ...store.store, badnessThreshold: badnessThreshold() }));
 const SETTING_MINS = { microIntervalMin: 1, longIntervalMin: 5, microDurationSec: 5, longDurationSec: 30,
   holdSeconds: 3, alertCooldownMin: 1, reminderIntervalMin: 5, idlePauseSec: 15, preBreakWarnSec: 0,
-  watchSlouchSec: 15, standIntervalMin: 10, standMinutes: 1, varietyMin: 5, hydrationIntervalMin: 10 };
+  watchSlouchSec: 15, standIntervalMin: 10, standMinutes: 1, varietyMin: 5, hydrationIntervalMin: 10,
+  altSitMin: 10, altStandMin: 5 };
 ipcMain.handle("settings:set", (_e, patch) => {
   // Clamp numeric settings — a cleared field arrives as 0 and a 0 interval/hold
   // would fire a break/nudge every tick (a storm). Floor each to a safe minimum.
@@ -1243,7 +1291,10 @@ ipcMain.handle("settings:set", (_e, patch) => {
   for (const [k, v] of Object.entries(patch)) store.set(k, v);
   if ("microIntervalMin" in patch) microRemaining = store.get("microIntervalMin") * 60;
   if ("longIntervalMin" in patch) longRemaining = store.get("longIntervalMin") * 60;
-  if ("standIntervalMin" in patch || "standEnabled" in patch) standRemaining = store.get("standIntervalMin") * 60;
+  if (["standIntervalMin", "standEnabled", "standMode", "altSitMin", "altStandMin"].some((k) => k in patch)) {
+    altAwaiting = null;
+    standRemaining = standCycleSecs();
+  }
   if ("hydrationIntervalMin" in patch || "hydrationEnabled" in patch) hydrationRemaining = store.get("hydrationIntervalMin") * 60;
   if ("launchAtLogin" in patch) applyLoginItem();
   if ("bugReports" in patch) {
