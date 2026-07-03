@@ -95,7 +95,7 @@ window.api.on("setup:cameraError", (msg) => {
 window.api.on("setup:calibrated", (deskCheck) => {
   calibrated = true;
   const warnings = renderDeskCheck(deskCheck);
-  setStatus("calStatus", "calText", "ok", warnings ? "Calibrated ✓ - one desk tweak worth making:" : "Calibrated ✓ - moving on…");
+  setStatus("calStatus", "calText", "ok", warnings ? "Calibrated ✓ - your desk setup could use a tweak:" : "Calibrated ✓ - moving on…");
   if (i === 2) {
     $("#next").disabled = false;
     // If the desk check flagged something, stay so they can read it; else move on.

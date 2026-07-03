@@ -89,7 +89,7 @@ function buildRoutine(kind) {
     const secs = store.get("microDurationSec") || 60;
     return [{ id: "eye-rest", name: "Eye break", area: "eyes", anim: "eyes", mode: "time",
       seconds: secs, total: secs,
-      cue: "Look at something across the room or out a window (20+ feet away) for the whole break, blinking slowly. Twenty seconds isn't enough - give your eyes the full stretch." }];
+      cue: "Look at something across the room or out a window (20+ feet away) and blink slowly. Let your eyes fully relax until the timer is done." }];
   }
   if (kind === "stand") {
     const mins = store.get("standMinutes") || 5;
@@ -432,8 +432,8 @@ function buildMenu() {
   let nextBreak = "Breaks off";
   if (breaksOn && !clockedOut) {
     const parts = [];
-    if (store.get("longEnabled")) parts.push(`long in ${fmtMin(longRemaining)}`);
-    if (store.get("microEnabled")) parts.push(`micro in ${fmtMin(microRemaining)}`);
+    if (store.get("longEnabled")) parts.push(`stretch in ${fmtMin(longRemaining)}`);
+    if (store.get("microEnabled")) parts.push(`eyes in ${fmtMin(microRemaining)}`);
     if (store.get("standEnabled")) {
       if (store.get("standMode") === "alternate")
         parts.push(altAwaiting
@@ -461,9 +461,9 @@ function buildMenu() {
     { label: "Calibrate posture (sit up straight)", enabled: monitoring, click: calibrate },
     { label: "Show camera / posture view", click: () => showWin("monitor") },
     { type: "separator" },
-    { label: `Take long break now  ${MOD}B`, click: () => startBreak("long", true) },
-    { label: "Take micro break now", click: () => startBreak("micro", true) },
-    { label: "1-minute breather (box breathing)", click: () => startBreak("breath", true) },
+    { label: `Take a stretch break  ${MOD}B`, click: () => startBreak("long", true) },
+    { label: "Take an eye break", click: () => startBreak("micro", true) },
+    { label: "Take a 1-minute breather", click: () => startBreak("breath", true) },
     { label: "Snooze breaks 15 min", click: () => snooze(15) },
     { label: "Reset break timers", click: resetBreakTimers },
     { type: "separator" },
@@ -768,7 +768,7 @@ function promptSwitch(target) {
   const n = new Notification({
     title: up ? "Switch to standing 🧍" : "Switch to sitting 🪑",
     body: (up ? "Raise the desk. " : "Lower the desk and take a seat. ") +
-      "Click here (or use the menu-bar ✓) once you've switched - I'll time the next stretch from then.",
+      "Click here (or use the menu-bar ✓) once you've switched - the next timer starts from then.",
   });
   n.on("click", confirmSwitch);
   n.show();
