@@ -6,6 +6,9 @@
     <style>
       html, body { margin: 0; height: 100%; width: 100%; overflow: hidden;
         background: transparent; pointer-events: none; font-family: -apple-system, system-ui, sans-serif; }
+      /* pre-break gradual dim: a slow full-screen tint that deepens as the break
+         approaches (evidence: gradual occlusion beats abrupt interruption) */
+      #dim { position: fixed; inset: 0; background: #0b0d12; opacity: 0; transition: opacity 1.1s linear; }
       #border {
         position: fixed; inset: 0; border: 9px solid rgba(255,200,40,.8); border-radius: 16px;
         box-shadow: inset 0 0 75px rgba(255,190,30,.42); opacity: 0; transition: opacity .4s;
@@ -36,6 +39,7 @@
     </style>
   </head>
   <body>
+    <div id="dim"></div>
     <div id="border"></div>
     <div id="hud"><span class="dot">●</span> &nbsp;Lean back from your screen</div>
     <div id="cue"><span class="ic"></span><span id="cueText"></span></div>

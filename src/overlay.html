@@ -23,7 +23,11 @@
       #side.show { display: inline-block; animation: sidePop .45s cubic-bezier(.2,1.3,.5,1); }
       @keyframes sidePop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
       #cue { font-size: 18px; opacity: .92; max-width: 580px; margin: 10px 30px 22px; line-height: 1.5; min-height: 54px; }
-      #ringWrap { position: relative; width: 200px; height: 200px; margin-bottom: 16px; }
+      #ringWrap { position: relative; width: 200px; height: 200px; margin-bottom: 16px;
+        transition: transform 3.8s ease-in-out; }
+      /* box-breathing pacer: the ring swells on the inhale, settles on the exhale */
+      #ringWrap.inhale { transform: scale(1.16); }
+      #ringWrap.exhale { transform: scale(0.9); }
       #ringSvg { transform: rotate(-90deg); }
       #ring { stroke: var(--accent); } /* per-theme ring colour (overrides the attribute) */
       #count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;

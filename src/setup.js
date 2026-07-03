@@ -92,20 +92,56 @@ window.api.on("setup:cameraError", (msg) => {
   if (i === 2) $("#next").disabled = false;
 });
 
-window.api.on("setup:calibrated", () => {
+window.api.on("setup:calibrated", (deskCheck) => {
   calibrated = true;
-  setStatus("calStatus", "calText", "ok", "Calibrated ✓ — moving on…");
+  const warnings = renderDeskCheck(deskCheck);
+  setStatus("calStatus", "calText", "ok", warnings ? "Calibrated ✓ — one desk tweak worth making:" : "Calibrated ✓ — moving on…");
   if (i === 2) {
     $("#next").disabled = false;
-    setTimeout(() => { if (i === 2) show(3); }, 1500); // auto-advance + closes the camera
+    // If the desk check flagged something, stay so they can read it; else move on.
+    if (!warnings) setTimeout(() => { if (i === 2) show(3); }, 1500);
   }
 });
 
+// Webcam-estimated ergonomic check against OSHA/Cornell targets. Returns the
+// number of warnings so the caller can decide whether to pause on this step.
+function renderDeskCheck(dc) {
+  const box = $("#deskCheck"), list = $("#deskCheckList");
+  if (!dc || !box) return 0;
+  const items = [];
+  if (dc.distanceIn != null) {
+    items.push(dc.tooClose
+      ? ["warn", `You're sitting ≈${dc.distanceIn}″ from the screen — guidelines say at least 20″ (20–40″ is ideal). Push the screen back or scoot back a touch.`]
+      : ["ok", `Screen distance ≈${dc.distanceIn}″ — within the recommended 20–40″.`]);
+  }
+  items.push(dc.cameraBelow
+    ? ["warn", "Your camera (likely your screen) sits below eye level — raise the display so the top of the screen is at eye level; your neck will thank you."]
+    : ["ok", "Screen height looks good — top of screen near eye level."]);
+  items.push(dc.cameraOffCentre
+    ? ["warn", "Camera is off to one side — if that's your main screen, put it directly in front of you to avoid twisting."]
+    : ["ok", "Screen is straight ahead of you."]);
+  items.push(["info", "Also worth a glance: forearms level with the desk (~90–100° elbow), feet flat, ears over shoulders."]);
+  list.innerHTML = "";
+  let warnings = 0;
+  for (const [kind, text] of items) {
+    if (kind === "warn") warnings++;
+    const li = document.createElement("li");
+    li.textContent = (kind === "warn" ? "⚠️ " : kind === "ok" ? "✓ " : "💡 ") + text;
+    if (kind === "warn") li.style.color = "#b45309";
+    list.appendChild(li);
+  }
+  box.style.display = "";
+  return warnings;
+}
+
 // ---- breaks ---------------------------------------------------------------
-["microEnabled", "longEnabled"].forEach((id) =>
-  $("#" + id).addEventListener("change", (e) => window.api.invoke("settings:set", { [id]: e.target.checked }))
+["microEnabled", "longEnabled", "standEnabled"].forEach((id) =>
+  $("#" + id).addEventListener("change", (e) => {
+    window.api.invoke("settings:set", { [id]: e.target.checked });
+    if (id === "standEnabled") $("#standIntervalRow").style.display = e.target.checked ? "" : "none";
+  })
 );
-["microIntervalMin", "longIntervalMin"].forEach((id) =>
+["microIntervalMin", "longIntervalMin", "standIntervalMin"].forEach((id) =>
   $("#" + id).addEventListener("change", (e) => window.api.invoke("settings:set", { [id]: Number(e.target.value) }))
 );
 
@@ -143,6 +179,9 @@ function setStatus(boxId, textId, cls, msg) {
   $("#longEnabled").checked = !!cfg.longEnabled;
   $("#microIntervalMin").value = cfg.microIntervalMin;
   $("#longIntervalMin").value = cfg.longIntervalMin;
+  $("#standEnabled").checked = !!cfg.standEnabled;
+  $("#standIntervalMin").value = cfg.standIntervalMin;
+  $("#standIntervalRow").style.display = cfg.standEnabled ? "" : "none";
   $("#watchEnabled").checked = !!cfg.watchEnabled;
   $("#watchTopic").value = cfg.watchTopic || "";
   $("#bugReports").checked = cfg.bugReports !== false;

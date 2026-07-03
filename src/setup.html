@@ -118,18 +118,24 @@
           shoulders back, lift your chin, sit tall — until the on-screen guide turns
           <b>green</b>, then press <b>Calibrate</b> right on that window.</p>
         <div class="status" id="calStatus"><span class="dot"></span><span id="calText">Waiting for calibration…</span></div>
-        <p class="hint">This continues automatically once you've calibrated. You can re-calibrate
-          anytime from the menu bar.</p>
+        <p class="hint">Sit how you actually work — a relaxed 100–110° recline is healthy. This
+          continues automatically once you've calibrated; re-calibrate anytime from the menu bar.</p>
+        <div class="card" id="deskCheck" style="display:none">
+          <div class="row" style="font-weight:600">Desk check <span class="muted" style="font-weight:400;font-size:12px">&nbsp;from your camera + OSHA/Cornell guidelines</span></div>
+          <ul class="muted" id="deskCheckList" style="margin:6px 0 8px; padding-left:20px; line-height:1.55; font-size:13px"></ul>
+        </div>
       </section>
 
       <section class="step" data-step="3">
         <h1>Break reminders</h1>
-        <p class="muted">Sensible defaults below — tweak now or later in Settings.</p>
+        <p class="muted">Evidence-based defaults below — tweak now or later in Settings.</p>
         <div class="card">
-          <div class="row"><label>Eye breaks (20-20-20)</label><span class="switch"><input type="checkbox" id="microEnabled" /><span class="slider"></span></span></div>
+          <div class="row"><label>Eye breaks<div class="muted" style="font-weight:400;font-size:12px">a full minute looking far away — 20 seconds is too short to help</div></label><span class="switch"><input type="checkbox" id="microEnabled" /><span class="slider"></span></span></div>
           <div class="row"><label>…every (min)</label><input type="number" id="microIntervalMin" min="1" max="180" /></div>
           <div class="row"><label>Stretch breaks</label><span class="switch"><input type="checkbox" id="longEnabled" /><span class="slider"></span></span></div>
           <div class="row"><label>…every (min)</label><input type="number" id="longIntervalMin" min="5" max="240" /></div>
+          <div class="row"><label>Stand reminders<div class="muted" style="font-weight:400;font-size:12px">have a sit-stand desk, or want hourly “get on your feet” nudges? Research: ~5 min standing per hour</div></label><span class="switch"><input type="checkbox" id="standEnabled" /><span class="slider"></span></span></div>
+          <div class="row" id="standIntervalRow"><label>…every (min)</label><input type="number" id="standIntervalMin" min="10" max="180" /></div>
         </div>
       </section>
 

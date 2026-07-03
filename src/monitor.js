@@ -37,6 +37,7 @@ let calibrating = null; // { samples: [], until }
 let baseline = null; // median feature vector
 let feat = null; // EMA-smoothed live features
 let badState = false; // hysteresis state
+let prevRaw = null, moveEma = 0; // body-movement level (posture-variety nudge)
 
 // ---- helpers --------------------------------------------------------------
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -392,6 +393,17 @@ function loop() {
     return;
   }
 
+  // Movement level: summed frame-to-frame feature change, slow-EMA'd. Distinguishes
+  // "holding one pose" (≈0.003 jitter floor) from actually shifting (spikes ≥0.02) —
+  // drives the posture-variety nudge without any extra model work.
+  if (prevRaw) {
+    const d = Math.abs(raw.shY - prevRaw.shY) + Math.abs(raw.headY - prevRaw.headY) +
+      Math.abs(raw.sw - prevRaw.sw) + Math.abs(raw.noseDrop - prevRaw.noseDrop) +
+      Math.abs(raw.shTilt - prevRaw.shTilt);
+    moveEma = moveEma * 0.9 + d * 0.1;
+  }
+  prevRaw = raw;
+
   const f = smoothFeatures(raw);
   const score = badness(f);
   // hysteresis: enter "bad" above the threshold, only leave below 60% of it —
@@ -408,7 +420,7 @@ function loop() {
   setState(badState ? "bad" : "good", badState ? "fix your posture" : "good posture", score,
     badState ? cue : "Nice — keep it up");
   subEl.textContent = badState ? "" : "";
-  throttleSend({ state: badState ? "bad" : "good", score, proximity, cue });
+  throttleSend({ state: badState ? "bad" : "good", score, proximity, cue, move: moveEma });
 }
 
 // Pick the dominant fault so the on-screen cue is specific, not generic.

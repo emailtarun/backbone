@@ -56,6 +56,12 @@ const STRETCH_LIBRARY = [
     cue: "Stand and reach tall overhead, then slowly fold forward and let your head and arms hang." },
   { id: "wrist-stretch", name: "Wrist & finger stretch", area: "wrists", anim: "wrist", mode: "side", perSideSec: 15,
     cue: "Extend one arm, fingers up then down, and gently draw them back with your other hand." },
+  { id: "wrist-circles", name: "Wrist circles", area: "wrists", anim: "wrist", mode: "time", seconds: 30,
+    cue: "Lift your hands off the desk and roll both wrists in slow circles — one way, then the other. Let the fingers stay loose." },
+  { id: "finger-fan", name: "Finger fans", area: "wrists", anim: "wrist", mode: "time", seconds: 20,
+    cue: "Spread your fingers wide like a fan, hold a beat, then make a loose fist. Repeat slowly — great after heavy typing." },
+  { id: "box-breathing", name: "Box breathing", area: "mind", anim: "breath", mode: "breath", seconds: 64,
+    cue: "Follow the ring: breathe in for 4, hold 4, out 4, hold 4. Shoulders soft, breathe into your belly." },
 ];
 
 const SECS_PER_REP = 4;
@@ -80,13 +86,28 @@ function cueArea(cue) {
 // you don't repeat last time's set, and fill to roughly the configured duration.
 function buildRoutine(kind) {
   if (kind === "micro") {
+    const secs = store.get("microDurationSec") || 60;
     return [{ id: "eye-rest", name: "Eye break", area: "eyes", anim: "eyes", mode: "time",
-      seconds: store.get("microDurationSec") || 20, total: store.get("microDurationSec") || 20,
-      cue: "Look at something ~20 feet away and blink slowly — let your eyes fully relax." }];
+      seconds: secs, total: secs,
+      cue: "Look at something across the room or out a window (20+ feet away) for the whole break, blinking slowly. Twenty seconds isn't enough — give your eyes the full stretch." }];
+  }
+  if (kind === "stand") {
+    const mins = store.get("standMinutes") || 5;
+    return [{ id: "stand-up", name: "Stand up", area: "fullbody", anim: "standfold", mode: "time",
+      seconds: 30, total: 30,
+      cue: `Get on your feet and stay up for ~${mins} minute${mins === 1 ? "" : "s"} — stretch, grab water, or keep working standing.` }];
+  }
+  if (kind === "breath") {
+    const s = STRETCH_LIBRARY.find((x) => x.id === "box-breathing");
+    return [{ ...s, total: stretchTotal(s) }];
   }
   const disabled = store.get("disabledStretches") || [];
   const enabled = STRETCH_LIBRARY.filter((s) => !disabled.includes(s.id));
-  const tally = store.get("faultTally") || {};
+  const stored = store.get("faultTally") || {};
+  const tally = { ...stored };
+  // With no posture-fault history yet, nudge wrist work forward — keyboard strain
+  // doesn't show on the webcam, and hourly wrist relief is the evidence-backed dose.
+  if (!Object.keys(tally).length) tally.wrists = 1;
   const last = new Set(store.get("lastRoutineIds") || []);
   const scored = enabled
     .map((s) => {
@@ -106,9 +127,10 @@ function buildRoutine(kind) {
     if (out.length >= 6) break;
   }
   store.set("lastRoutineIds", out.map((s) => s.id));
-  // gentle decay so the targeting keeps adapting
+  // gentle decay so the targeting keeps adapting (decay the stored tally, not the
+  // scoring copy — the wrist fallback above must not leak into persistence)
   const decayed = {};
-  for (const k of Object.keys(tally)) decayed[k] = tally[k] * 0.8;
+  for (const k of Object.keys(stored)) decayed[k] = stored[k] * 0.8;
   store.set("faultTally", decayed);
   return out.map((s) => ({ ...s, total: stretchTotal(s) }));
 }
@@ -124,16 +146,28 @@ const store = new Store({
     proximityAlert: true,
     proximitySensitivity: 50,
     weights: { neck: 1.0, lean: 0.6, tilt: 0.8 },
+    postureVarietyEnabled: true, // nudge when frozen in one position too long (dynamic posture)
+    varietyMin: 30, // minutes of stillness before the posture-variety nudge
     // breaks
     microEnabled: true,
     microIntervalMin: 20,
-    microDurationSec: 20,
+    microDurationSec: 60, // evidence: 20-second eye breaks are too short — 1-2 min works
     longEnabled: true,
     longIntervalMin: 50,
     longDurationSec: 180,
     preBreakWarnSec: 10,
+    preBreakStyle: "pill", // pill | dim (gradually tint the screen as the break approaches)
     strictBreaks: false,
     showCursorTimer: true,
+    // sit / stand (opt-in — evidence: stand ~5 min every hour; alternate hourly on a sit-stand desk)
+    standEnabled: false,
+    standIntervalMin: 60,
+    standMinutes: 5, // the stand goal communicated in the prompt
+    standStyle: "prompt", // prompt (notification) | overlay (30s break card)
+    standMode: "remind", // remind (stand up briefly) | alternate (sit-stand desk: switch hourly)
+    // hydration (honest: no strong evidence — purely optional)
+    hydrationEnabled: false,
+    hydrationIntervalMin: 60,
     // sound
     soundEnabled: true,
     soundVolume: 0.6,
@@ -263,6 +297,13 @@ let snoozeUntil = 0;
 
 let microRemaining = 0; // seconds
 let longRemaining = 0;
+let standRemaining = 0; // seconds until the next stand/move prompt (when standEnabled)
+let hydrationRemaining = 0;
+let standPhase = "sit"; // sit-stand desk alternation state (standMode "alternate")
+let standPromptedAt = 0; // when the last stand prompt fired (for presence-aware credit)
+let awaySince = 0; // start of the current no-person stretch (stand credit + longest-sit)
+let presentSince = 0; // start of the current continuous-presence stretch
+let stillSince = 0; // last significant body movement (posture-variety nudge)
 let warnShownFor = null; // 'micro' | 'long' | null
 let preBreakEscOn = false; // Esc grabbed globally only while the pre-break pill shows
 
@@ -271,7 +312,7 @@ let updateVersion = "";
 let checkingUpdate = false;
 let lastTallyAt = 0; // throttle posture-fault tallying
 let proximityOn = false; // "lean back" hysteresis state (owned by onPostureUpdate)
-let glowOn = false, cueOn = false, proxShown = false; // overlay element visibility (owned by flashCmd)
+let glowOn = false, cueOn = false, proxShown = false, dimOn = false; // overlay element visibility (owned by flashCmd)
 let flashShown = false; // is the transparent overlay window currently visible?
 let flashHideTimer = null; // deferred hide so posture oscillation can't strobe the window
 const lastFlash = {}; // last cmd signature per type, to skip redundant per-frame sends
@@ -372,7 +413,7 @@ let lastTrayKey = null;
 function menuKey() {
   let nb = "off";
   if ((store.get("microEnabled") || store.get("longEnabled")) && !clockedOut) {
-    nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}`;
+    nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}|${store.get("standEnabled") ? fmtMin(standRemaining) : ""}`;
     if (snoozeUntil > Date.now()) nb = "snooze";
   }
   return [monitoring, clockedOut, updateReady, updateVersion, nb].join("~");
@@ -390,6 +431,7 @@ function buildMenu() {
     const parts = [];
     if (store.get("longEnabled")) parts.push(`long in ${fmtMin(longRemaining)}`);
     if (store.get("microEnabled")) parts.push(`micro in ${fmtMin(microRemaining)}`);
+    if (store.get("standEnabled")) parts.push(`stand in ${fmtMin(standRemaining)}`);
     nextBreak = parts.join(" · ");
     if (snoozeUntil > Date.now()) nextBreak = `snoozed ${fmtMin((snoozeUntil - Date.now()) / 1000)}`;
   }
@@ -409,6 +451,7 @@ function buildMenu() {
     { type: "separator" },
     { label: `Take long break now  ${MOD}B`, click: () => startBreak("long", true) },
     { label: "Take micro break now", click: () => startBreak("micro", true) },
+    { label: "1-minute breather (box breathing)", click: () => startBreak("breath", true) },
     { label: "Snooze breaks 15 min", click: () => snooze(15) },
     { label: "Reset break timers", click: resetBreakTimers },
     { type: "separator" },
@@ -531,7 +574,8 @@ function setMonitoring(on) {
   postureState = on ? "init" : "paused";
   badSince = null;
   lastWatchSlouchAt = 0;
-  if (!on) clearOverlayAlerts();
+  stillSince = 0;
+  if (!on) { recordSittingBout(); presentSince = 0; awaySince = 0; clearOverlayAlerts(); }
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:setPaused", !on);
   updateTray();
@@ -580,18 +624,39 @@ function onPostureUpdate(p) {
     badSince = null;
     lastWatchSlouchAt = 0;
     stats.sample("no-person");
-  } else if (p.state === "bad") {
-    postureState = "bad";
-    if (!badSince) badSince = Date.now();
-    stats.sample("bad");
-    maybeNudge();
-    maybeWatchSlouch();
+    if (!awaySince) awaySince = Date.now();
+    stillSince = 0;
   } else {
-    postureState = "good";
-    badSince = null;
-    lastWatchSlouchAt = 0;
-    lastEscalateSound = 0;
-    stats.sample("good");
+    // present (good or bad) — presence bookkeeping shared by both states
+    if (awaySince) {
+      // Coming back from an away stretch: if they actually left (3+ min) shortly
+      // after a stand prompt, credit the stand; long absences end the sitting bout.
+      const awayMs = Date.now() - awaySince;
+      if (awayMs >= 3 * 60 * 1000) {
+        if (standPromptedAt && awaySince - standPromptedAt >= 0 && awaySince - standPromptedAt < 10 * 60 * 1000) {
+          stats.bumpDay("stands");
+          standPromptedAt = 0;
+        }
+        recordSittingBout();
+        presentSince = 0;
+      }
+      awaySince = 0;
+    }
+    if (!presentSince) presentSince = Date.now();
+    maybeVarietyNudge(p);
+    if (p.state === "bad") {
+      postureState = "bad";
+      if (!badSince) badSince = Date.now();
+      stats.sample("bad");
+      maybeNudge();
+      maybeWatchSlouch();
+    } else {
+      postureState = "good";
+      badSince = null;
+      lastWatchSlouchAt = 0;
+      lastEscalateSound = 0;
+      stats.sample("good");
+    }
   }
 
   // Persistent yellow glow + "what to fix" cue while you're slouching (after a
@@ -632,8 +697,52 @@ function maybeNudge() {
   if (style === "voice") playSound("voice", "Check your posture. Sit up tall.");
   else if (style !== "silent") {
     if (store.get("soundEnabled")) playSound("nudge");
-    notify("Check your posture 🪑", "You've been slouching — reset your shoulders and lift your head.");
+    notify("Check your posture 🪑", nextNudgeMsg());
   }
+}
+
+// Rotating copy — a fixed message stops registering; variety helps long-term
+// adherence (and it's cheap).
+const NUDGE_MSGS = [
+  "You've been slouching — reset your shoulders and lift your head.",
+  "Sit tall: ears over shoulders, shoulders over hips.",
+  "Unround those shoulders and lengthen the back of your neck.",
+  "Quick reset — roll your shoulders back and lift your chest.",
+  "Imagine a string pulling the crown of your head to the ceiling.",
+  "Slide your chin back and let your spine stack up tall.",
+];
+let nudgeMsgIdx = 0;
+function nextNudgeMsg() { return NUDGE_MSGS[nudgeMsgIdx++ % NUDGE_MSGS.length]; }
+
+// Stand / move prompt (evidence: hourly stand prompts reliably cut sitting time).
+// Lightweight by design — a notification, sound and optional watch buzz; the
+// "overlay" style shows a 30s break card instead. In "alternate" mode it cues
+// sit-stand desk users to switch position each interval instead.
+function startStandPrompt() {
+  standRemaining = Math.max(10, store.get("standIntervalMin")) * 60;
+  stats.bumpDay("standPrompts");
+  standPromptedAt = Date.now();
+  if (sched.isQuietNow(store.store)) return;
+  const mins = store.get("standMinutes") || 5;
+  if (store.get("standMode") === "alternate") {
+    standPhase = standPhase === "stand" ? "sit" : "stand";
+    const up = standPhase === "stand";
+    if (store.get("soundEnabled")) playSound("nudge");
+    notify(up ? "Switch to standing 🧍" : "Switch to sitting 🪑",
+      up ? "Raise the desk — alternating hourly beats standing (or sitting) all day."
+         : "Lower the desk and take a seat — your legs have earned it.");
+    if (store.get("watchBreaks"))
+      pushWatch(up ? "Switch to standing" : "Switch to sitting",
+        up ? "Raise the desk for the next stretch of work." : "Lower the desk and sit for a while.",
+        { priority: Math.max(2, store.get("watchPriority") - 1), tags: up ? "standing_person" : "chair" });
+    return;
+  }
+  if (store.get("standStyle") === "overlay") { startBreak("stand"); return; }
+  if (store.get("soundEnabled")) playSound("nudge");
+  notify("Stand up 🧍", `Get on your feet for ~${mins} min — stretch, grab water, or keep working standing.`);
+  if (store.get("watchBreaks"))
+    pushWatch("Stand up", `On your feet for ~${mins} min — move a little.`,
+      { priority: Math.max(2, store.get("watchPriority") - 1), tags: "standing_person" });
 }
 
 // After 30s of sustained slouching, play a small reminder sound every few seconds
@@ -645,6 +754,38 @@ function maybeEscalateSound() {
   if (Date.now() - lastEscalateSound < 5000) return; // every ~5s
   lastEscalateSound = Date.now();
   playSound("nudge");
+}
+
+// Close out the current continuous-sitting bout (user left / took a standing
+// break) and remember today's longest for the dashboard.
+function recordSittingBout() {
+  if (!presentSince) return;
+  const mins = Math.round((Date.now() - presentSince) / 60000);
+  if (mins >= 5) stats.noteLongestSit(mins);
+}
+
+// Dynamic-posture nudge: even "good" posture held rigidly is bad — Cornell/ANSI
+// explicitly recommend frequent posture changes over any single static pose. If
+// the body has been essentially motionless for varietyMin, give one gentle cue.
+const VARIETY_MSGS = [
+  "You've been in one position a while — shift, recline, or roll your shoulders.",
+  "Posture check: the best posture is the next one. Change it up.",
+  "Time to move a little — re-settle into a fresh position.",
+  "Shift your hips, change your lean — your spine likes variety.",
+];
+let varietyMsgIdx = 0;
+function maybeVarietyNudge(p) {
+  if (!store.get("postureVarietyEnabled")) return;
+  if (p.move == null) return; // detector doesn't report movement — feature inert
+  const now = Date.now();
+  if (p.move > 0.012 || !stillSince) { stillSince = now; return; }
+  if (now - stillSince < Math.max(5, store.get("varietyMin")) * 60000) return;
+  stillSince = now; // one nudge per stretch of stillness
+  if (sched.isQuietNow(store.store)) return;
+  const style = store.get("nudgeStyle");
+  if (style === "silent") return;
+  if (store.get("soundEnabled")) playSound("nudge");
+  notify("Change it up 🔄", VARIETY_MSGS[varietyMsgIdx++ % VARIETY_MSGS.length], true);
 }
 
 // Buzz the watch once posture has been continuously bad past the threshold, then
@@ -673,10 +814,11 @@ function flashCmd(cmd) {
   if (cmd.type === "glow") glowOn = !!cmd.on;
   else if (cmd.type === "cue") cueOn = !!cmd.on;
   else if (cmd.type === "proximity") proxShown = !!cmd.on;
-  const anyOn = glowOn || cueOn || proxShown;
+  else if (cmd.type === "dim") dimOn = !!cmd.on;
+  const anyOn = glowOn || cueOn || proxShown || dimOn;
 
   // Skip the per-frame IPC when this command hasn't actually changed.
-  const sig = (cmd.on ? "1" : "0") + (cmd.urgent ? "u" : "") + (cmd.text || "");
+  const sig = (cmd.on ? "1" : "0") + (cmd.urgent ? "u" : "") + (cmd.level != null ? cmd.level.toFixed(2) : "") + (cmd.text || "");
   const changed = lastFlash[cmd.type] !== sig;
   lastFlash[cmd.type] = sig;
 
@@ -689,7 +831,7 @@ function flashCmd(cmd) {
     if (flashShown && !flashHideTimer) {
       flashHideTimer = setTimeout(() => {
         flashHideTimer = null;
-        if (!(glowOn || cueOn || proxShown) && flashShown && wins.flash && !wins.flash.isDestroyed()) {
+        if (!(glowOn || cueOn || proxShown || dimOn) && flashShown && wins.flash && !wins.flash.isDestroyed()) {
           wins.flash.hide();
           flashShown = false;
         }
@@ -724,6 +866,7 @@ function clearOverlayAlerts() {
   flashCmd({ type: "glow", on: false });
   flashCmd({ type: "cue", on: false });
   flashCmd({ type: "proximity", on: false });
+  flashCmd({ type: "dim", on: false });
   // Explicit stop (pause/break/idle/clock-out): hide now rather than waiting for
   // the dwell timer, and drop any pending deferred hide.
   if (flashHideTimer) { clearTimeout(flashHideTimer); flashHideTimer = null; }
@@ -744,6 +887,8 @@ function playSound(type, text) {
 function resetBreakTimers() {
   microRemaining = store.get("microIntervalMin") * 60;
   longRemaining = store.get("longIntervalMin") * 60;
+  standRemaining = store.get("standIntervalMin") * 60;
+  hydrationRemaining = store.get("hydrationIntervalMin") * 60;
   warnShownFor = null;
   hideCursorTimer();
   updateTray();
@@ -761,13 +906,17 @@ function startBreak(kind, manual) {
   warnShownFor = null;
   badSince = null;
   lastWatchSlouchAt = 0;
+  stillSince = 0;
   clearOverlayAlerts(); // no slouch glow / HUD during a break
   if (store.get("soundEnabled")) playSound("break-start");
   if (!manual && store.get("watchBreaks"))
     pushWatch(
-      kind === "long" ? "Time to stretch" : "Eye break",
-      kind === "long" ? "Stand up and stretch for a few minutes." : "Look ~20 ft away for 20 seconds.",
-      { priority: Math.max(2, store.get("watchPriority") - 1), tags: kind === "long" ? "person_in_lotus_position" : "eyes" }
+      kind === "long" ? "Time to stretch" : kind === "stand" ? "Stand up" : "Eye break",
+      kind === "long" ? "Stand up and stretch for a few minutes."
+        : kind === "stand" ? `On your feet for ~${store.get("standMinutes") || 5} min — move a little.`
+        : "Look at something far away for a minute.",
+      { priority: Math.max(2, store.get("watchPriority") - 1),
+        tags: kind === "long" ? "person_in_lotus_position" : kind === "stand" ? "standing_person" : "eyes" }
     );
 
   const routine = buildRoutine(kind);
@@ -797,22 +946,39 @@ function endBreak(kind, skipped) {
   breakActive = false;
   if (wins.overlay) wins.overlay.hide();
   if (store.get("soundEnabled") && !skipped) playSound("break-end");
-  if (kind === "long") { stats.bumpDay("longs"); longRemaining = store.get("longIntervalMin") * 60; }
-  else { stats.bumpDay("micros"); microRemaining = store.get("microIntervalMin") * 60; }
-  if (skipped) stats.bumpDay("skipped");
-  // a long break also satisfies the micro timer
-  if (kind === "long") microRemaining = store.get("microIntervalMin") * 60;
+  if (kind === "long") {
+    stats.bumpDay("longs");
+    longRemaining = store.get("longIntervalMin") * 60;
+    // a long break also satisfies the micro + stand timers (the routine involves standing)
+    microRemaining = store.get("microIntervalMin") * 60;
+    standRemaining = store.get("standIntervalMin") * 60;
+    if (skipped) stats.bumpDay("skipped");
+    if (!skipped) { recordSittingBout(); presentSince = 0; } // they stood for the routine
+  } else if (kind === "stand") {
+    if (!skipped) { stats.bumpDay("stands"); recordSittingBout(); presentSince = 0; }
+    standRemaining = store.get("standIntervalMin") * 60;
+  } else if (kind === "breath") {
+    // a manual breather doesn't reset any schedule
+  } else {
+    stats.bumpDay("micros");
+    microRemaining = store.get("microIntervalMin") * 60;
+    if (skipped) stats.bumpDay("skipped");
+  }
   updateTray();
+}
+
+// The pre-break warning surfaces (pill / dim) never take focus, so they can't get
+// a keypress. Grab Esc globally just while one is up, so Esc cancels the break.
+function ensurePreBreakEsc() {
+  if (!preBreakEscOn) {
+    try { preBreakEscOn = globalShortcut.register("Escape", cancelImminentBreak); } catch (_) {}
+  }
 }
 
 // cursor-following pre-break countdown
 function showCursorTimer(label, secs) {
   if (!store.get("showCursorTimer")) return;
-  // The pill is shown inactive (never steals focus), so it can't get a keypress.
-  // Grab Esc globally just while it's up, so Esc cancels the imminent break.
-  if (!preBreakEscOn) {
-    try { preBreakEscOn = globalShortcut.register("Escape", cancelImminentBreak); } catch (_) {}
-  }
+  ensurePreBreakEsc();
   const w = getWin("timer");
   const send = () => {
     elevate(w);
@@ -826,6 +992,7 @@ function showCursorTimer(label, secs) {
 }
 function hideCursorTimer() {
   if (wins.timer && !wins.timer.isDestroyed()) wins.timer.hide();
+  flashCmd({ type: "dim", on: false }); // clear the pre-break tint (preBreakStyle "dim")
   if (preBreakEscOn) { try { globalShortcut.unregister("Escape"); } catch (_) {} preBreakEscOn = false; }
 }
 // Esc during the pre-break countdown: skip this break (reset its timer to a full
@@ -862,6 +1029,7 @@ function tick() {
     idleStartedAt = Date.now();
     badSince = null; // re-arm slouch timing when they come back
     lastWatchSlouchAt = 0;
+    stillSince = 0;
     clearOverlayAlerts(); // don't leave a glow/cue frozen on screen while away
   } else if (!nowIdle && isIdle) {
     isIdle = false;
@@ -878,20 +1046,36 @@ function tick() {
   if (breaksActive) {
     if (store.get("longEnabled")) longRemaining = Math.max(0, longRemaining - 1);
     if (store.get("microEnabled")) microRemaining = Math.max(0, microRemaining - 1);
+    if (store.get("standEnabled")) standRemaining = Math.max(0, standRemaining - 1);
+    if (store.get("hydrationEnabled")) hydrationRemaining = Math.max(0, hydrationRemaining - 1);
 
     const warn = store.get("preBreakWarnSec");
     const longDue = store.get("longEnabled") && longRemaining <= 0;
     const microDue = store.get("microEnabled") && microRemaining <= 0;
 
+    // lightweight prompts (no overlay takeover) fire independently of the big breaks
+    if (store.get("standEnabled") && standRemaining <= 0) startStandPrompt();
+    if (store.get("hydrationEnabled") && hydrationRemaining <= 0) {
+      hydrationRemaining = Math.max(10, store.get("hydrationIntervalMin")) * 60;
+      notify("Water break 💧", "A good moment for a few sips.", true);
+    }
+
     if (longDue) startBreak("long");
     else if (microDue) startBreak("micro");
     else {
-      // pre-break cursor countdown for the nearest imminent break
+      // pre-break warning for the nearest imminent break: cursor pill (default)
+      // or a gradually deepening screen tint (evidence: gradual occlusion beats
+      // abrupt interruption for actually taking the break)
       const nextKind = store.get("longEnabled") && longRemaining <= microRemaining ? "long" : "micro";
       const rem = nextKind === "long" ? longRemaining : microRemaining;
       if (store.get(nextKind === "long" ? "longEnabled" : "microEnabled") && rem <= warn && rem > 0) {
-        showCursorTimer(nextKind === "long" ? "Break" : "Eyes", rem);
-        positionTimerAtCursor();
+        if (store.get("preBreakStyle") === "dim") {
+          ensurePreBreakEsc();
+          flashCmd({ type: "dim", on: true, level: Math.min(0.4, 0.4 * (1 - rem / Math.max(1, warn))) });
+        } else {
+          showCursorTimer(nextKind === "long" ? "Break" : "Eyes", rem);
+          positionTimerAtCursor();
+        }
         warnShownFor = nextKind;
       } else if (warnShownFor) {
         hideCursorTimer();
@@ -1004,27 +1188,52 @@ ipcMain.on("monitor:error", (_e, msg) => {
   notify("Backbone — camera error", String(msg));
   sendSetup("setup:cameraError", String(msg)); // let onboarding offer to skip calibration
 });
+// Rough screen-distance estimate from the calibrated inter-eye spacing: the
+// average adult IPD is ~63mm, so the fraction of the frame the eyes span plus a
+// typical laptop-webcam FOV (~60° horizontal) gives distance ≈ IPD / (frac·FOV).
+// Rough (FOV varies per camera) but plenty to flag "way too close" vs "fine".
+function deskCheckFrom(baseline) {
+  const check = {
+    cameraBelow: !!baseline.cameraBelow,
+    cameraOffCentre: !!baseline.cameraOffCentre,
+    distanceIn: null, tooClose: false,
+  };
+  if (baseline.eye > 0.01 && baseline.eye < 0.5) {
+    const distMM = 63 / (baseline.eye * (60 * Math.PI) / 180);
+    check.distanceIn = Math.round(distMM / 25.4);
+    check.tooClose = check.distanceIn < 20; // OSHA: at least 20 in, ideally 20-40
+  }
+  return check;
+}
+
 ipcMain.on("monitor:calibrated", (_e, baseline) => {
-  if (baseline && typeof baseline === "object") store.set("baseline", baseline);
+  let deskCheck = null;
+  if (baseline && typeof baseline === "object") {
+    store.set("baseline", baseline);
+    deskCheck = deskCheckFrom(baseline);
+    store.set("deskCheck", deskCheck);
+  }
   notify("Calibration complete ✅", "Your posture baseline is set.", true);
-  sendSetup("setup:calibrated");
+  sendSetup("setup:calibrated", deskCheck);
   // Let "Calibration complete ✓" show briefly, then close the camera view.
   setTimeout(() => { if (wins.monitor && !wins.monitor.isDestroyed()) wins.monitor.hide(); }, 1700);
 });
 
 ipcMain.on("overlay:done", (_e, { kind, skipped }) => endBreak(kind, skipped));
 ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
+  clearTimeout(breakWatchdog);
   breakActive = false;
   if (wins.overlay) wins.overlay.hide();
   if (kind === "long") longRemaining = (mins || 5) * 60;
-  else microRemaining = (mins || 5) * 60;
+  else if (kind === "stand") standRemaining = (mins || 5) * 60;
+  else if (kind !== "breath") microRemaining = (mins || 5) * 60;
   updateTray();
 });
 
 ipcMain.handle("settings:get", () => ({ ...store.store, badnessThreshold: badnessThreshold() }));
 const SETTING_MINS = { microIntervalMin: 1, longIntervalMin: 5, microDurationSec: 5, longDurationSec: 30,
   holdSeconds: 3, alertCooldownMin: 1, reminderIntervalMin: 5, idlePauseSec: 15, preBreakWarnSec: 0,
-  watchSlouchSec: 15 };
+  watchSlouchSec: 15, standIntervalMin: 10, standMinutes: 1, varietyMin: 5, hydrationIntervalMin: 10 };
 ipcMain.handle("settings:set", (_e, patch) => {
   // Clamp numeric settings — a cleared field arrives as 0 and a 0 interval/hold
   // would fire a break/nudge every tick (a storm). Floor each to a safe minimum.
@@ -1034,6 +1243,8 @@ ipcMain.handle("settings:set", (_e, patch) => {
   for (const [k, v] of Object.entries(patch)) store.set(k, v);
   if ("microIntervalMin" in patch) microRemaining = store.get("microIntervalMin") * 60;
   if ("longIntervalMin" in patch) longRemaining = store.get("longIntervalMin") * 60;
+  if ("standIntervalMin" in patch || "standEnabled" in patch) standRemaining = store.get("standIntervalMin") * 60;
+  if ("hydrationIntervalMin" in patch || "hydrationEnabled" in patch) hydrationRemaining = store.get("hydrationIntervalMin") * 60;
   if ("launchAtLogin" in patch) applyLoginItem();
   if ("bugReports" in patch) {
     if (patch.bugReports) initSentry();

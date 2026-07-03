@@ -2,11 +2,14 @@ const border = document.getElementById("border");
 const hud = document.getElementById("hud");
 const cue = document.getElementById("cue");
 const cueText = document.getElementById("cueText");
+const dim = document.getElementById("dim");
 
 window.api.on("flash:cmd", (cmd) => {
   if (cmd.type === "glow") {
     border.classList.toggle("on", !!cmd.on); // persistent until turned off
     border.classList.toggle("urgent", !!cmd.on && !!cmd.urgent); // faster flash after prolonged slouch
+  } else if (cmd.type === "dim") {
+    dim.style.opacity = cmd.on ? String(cmd.level || 0) : "0";
   } else if (cmd.type === "proximity") {
     hud.classList.toggle("on", !!cmd.on);
   } else if (cmd.type === "cue") {

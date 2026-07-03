@@ -41,13 +41,20 @@ async function refresh() {
   el("todayPct").style.color = color(s.todayPct);
   el("goodMin").textContent = s.goodMin;
   el("breaks").textContent = s.micros + s.longs;
+  el("stands").textContent = s.standPrompts ? `${s.stands}/${s.standPrompts}` : s.stands || 0;
+  el("longestSit").textContent = s.longestSitMin ? s.longestSitMin + "m" : "–";
+  // longest continuous sit: green < 60m, amber < 90m, red beyond (evidence: break up sitting every 30-60 min)
+  el("longestSit").style.color = s.longestSitMin ? color(s.longestSitMin < 60 ? 80 : s.longestSitMin < 90 ? 60 : 20) : "";
+  const kept = s.micros + s.longs;
+  el("adherence").textContent = kept + s.skipped > 0 ? Math.round((kept / (kept + s.skipped)) * 100) + "%" : "–";
+  el("badMinCard").textContent = s.badMin;
   el("week").innerHTML = barChart(s.week);
   const wk = s.week.filter((d) => d.pct != null);
   el("weekAvg").textContent = wk.length ? "avg " + Math.round(wk.reduce((a, d) => a + d.pct, 0) / wk.length) + "%" : "";
   el("spark").innerHTML = sparkline(s.last5.series);
   el("nowPct").textContent = s.last5.pct == null ? "" : "now " + s.last5.pct + "%";
   el("detail").textContent =
-    `${s.micros} eye breaks · ${s.longs} stretch breaks · ${s.skipped} skipped · ${s.badMin} min slouching today`;
+    `${s.micros} eye breaks · ${s.longs} stretch breaks · ${s.stands || 0} stands · ${s.skipped} skipped · ${s.badMin} min slouching today`;
 }
 
 refresh();

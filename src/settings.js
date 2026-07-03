@@ -23,10 +23,16 @@ function bindInputs() {
       if (key === "soundVolume") $("#volHint").textContent = Math.round(v * 100) + "%";
       if (inp.type === "range" && evt === "input") {
         clearTimeout(inp._t);
-        inp._t = setTimeout(() => save({ [key]: v }), 120);
-      } else save({ [key]: v });
+        inp._t = setTimeout(() => save({ [key]: v }).then(() => afterFieldSave(key)), 120);
+      } else save({ [key]: v }).then(() => afterFieldSave(key));
     });
   });
+}
+
+// keep the preset highlight + stand-options visibility in sync with edits
+function afterFieldSave(key) {
+  if (["microIntervalMin", "microDurationSec", "longIntervalMin", "standIntervalMin", "standMinutes"].includes(key)) renderPresets();
+  if (key === "standEnabled") syncStandOpts();
 }
 
 function fillInputs(s) {
@@ -152,6 +158,46 @@ function renderSeg(key, options, opts = {}) {
   });
 }
 
+// ---- schedule presets (fill the timing fields; everything stays editable) --
+const PRESETS = {
+  balanced: { label: "Balanced", vals: { microIntervalMin: 20, microDurationSec: 60, longIntervalMin: 50, standIntervalMin: 60, standMinutes: 5 } },
+  metabolic: { label: "Metabolic 30", vals: { microIntervalMin: 30, microDurationSec: 60, longIntervalMin: 60, standIntervalMin: 30, standMinutes: 3 } },
+  cornell: { label: "Cornell", vals: { microIntervalMin: 15, microDurationSec: 90, longIntervalMin: 120, standIntervalMin: 30, standMinutes: 5 } },
+  t2082: { label: "20-8-2", vals: { microIntervalMin: 30, microDurationSec: 120, longIntervalMin: 60, standIntervalMin: 30, standMinutes: 8 } },
+};
+function matchedPreset() {
+  return Object.keys(PRESETS).find((k) =>
+    Object.entries(PRESETS[k].vals).every(([key, v]) => Number(cfg[key]) === v)) || null;
+}
+function renderPresets() {
+  const box = $("#presetSeg");
+  if (!box) return;
+  box.innerHTML = "";
+  const active = matchedPreset();
+  for (const [id, p] of Object.entries(PRESETS)) {
+    const b = document.createElement("button");
+    b.textContent = p.label;
+    if (id === active) b.classList.add("on");
+    b.addEventListener("click", async () => {
+      cfg = await save({ ...p.vals });
+      fillInputs(cfg);
+      renderPresets();
+    });
+    box.appendChild(b);
+  }
+  const c = document.createElement("button");
+  c.textContent = "Custom";
+  c.disabled = true;
+  if (!active) c.classList.add("on");
+  box.appendChild(c);
+}
+
+// show/hide the stand options with the toggle
+function syncStandOpts() {
+  const opts = $("#standOpts");
+  if (opts) opts.style.display = cfg.standEnabled ? "" : "none";
+}
+
 // ---- break overlay theme picker with live preview ------------------------
 const THEMES = [["slate", "Slate"], ["aurora", "Aurora"], ["sunset", "Sunset"], ["forest", "Forest"], ["mono", "Mono"]];
 function updateThemePreview(theme) {
@@ -185,6 +231,11 @@ function renderThemePicker() {
   renderDays(cfg.workDays || []);
   renderLibrary();
   renderSeg("nudgeStyle", [["notification", "Notification"], ["flash", "Flash"], ["voice", "Voice"], ["silent", "Silent"]]);
+  renderSeg("preBreakStyle", [["pill", "Cursor pill"], ["dim", "Gentle dim"]]);
+  renderSeg("standMode", [["remind", "Stand-up reminder"], ["alternate", "Alternate sit/stand"]]);
+  renderSeg("standStyle", [["prompt", "Notification"], ["overlay", "Full-screen card"]]);
+  renderPresets();
+  syncStandOpts();
   renderThemePicker();
   // selecting a buzz strength fires a preview buzz so you feel the intensity
   renderSeg("watchPriority", [[2, "Gentle"], [3, "Normal"], [4, "Strong"], [5, "Urgent"]],

@@ -76,9 +76,11 @@ function playStretch() {
   total = s.total || s.seconds || 30;
   remaining = total;
   renderRing(); renderDots();
+  el("ringWrap").classList.remove("inhale", "exhale");
   el("steps").textContent = kind === "long" ? `Stretch ${idx + 1} of ${routine.length}` : "";
   switched = false;
   chime("start");
+  if (s.mode === "breath") updateBreath();
   timer = setInterval(() => {
     if (paused) return;
     remaining -= 1;
@@ -89,7 +91,24 @@ function playStretch() {
     }
     if (remaining <= 0) { clearInterval(timer); chime("done"); idx++; playStretch(); return; }
     renderRing();
+    if (s.mode === "breath") updateBreath();
   }, 1000);
+}
+
+// Box-breathing pacer: 4s in · 4s hold · 4s out · 4s hold, phase text in the side
+// pill and the ring swelling/settling with the breath.
+function updateBreath() {
+  const elapsed = total - remaining;
+  const phase = Math.floor((elapsed % 16) / 4); // 0 in · 1 hold · 2 out · 3 hold
+  const names = ["Breathe in…", "Hold…", "Breathe out…", "Hold…"];
+  const sideEl = el("side");
+  if (sideEl.textContent !== names[phase]) {
+    sideEl.textContent = names[phase];
+    sideEl.classList.add("show");
+  }
+  const wrap = el("ringWrap");
+  wrap.classList.toggle("inhale", phase <= 1);
+  wrap.classList.toggle("exhale", phase >= 2);
 }
 
 function finish() {
@@ -138,7 +157,8 @@ window.api.on("overlay:show", (p) => {
   routine = p.routine || [];
   soundOn = !!p.sound; volume = p.volume ?? 0.6;
   setTheme(p.theme);
-  el("kind").textContent = kind === "long" ? "Stretch break" : "Eye break";
+  el("kind").textContent =
+    kind === "long" ? "Stretch break" : kind === "stand" ? "Stand up" : kind === "breath" ? "Breather" : "Eye break";
   allowSkip = p.allowSkip !== false;
   document.querySelector(".controls").classList.remove("hidden");
   document.querySelector(".endrow").classList.remove("hidden");
