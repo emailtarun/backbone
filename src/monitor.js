@@ -118,6 +118,9 @@ function setState(cls, label, score, hint) {
 }
 
 function drawSkeleton(lm) {
+  // The window is hidden most of the time (backgroundThrottling is off so
+  // detection keeps running) - skip the canvas painting nobody can see.
+  if (document.visibilityState !== "visible") return;
   ctx.save();
   ctx.scale(-1, 1); // mirror so it feels like a mirror
   ctx.translate(-canvas.width, 0);
@@ -424,6 +427,9 @@ function loop() {
 }
 
 // Pick the dominant fault so the on-screen cue is specific, not generic.
+// Sticky: keep the current cue unless another fault clearly overtakes it, so
+// two near-equal faults can't flip the on-screen text back and forth.
+let lastCueMsg = null;
 function cueFor(f) {
   const b = baseline;
   if (!b) return "Sit up tall.";
@@ -437,7 +443,11 @@ function cueFor(f) {
     [(Math.abs(f.shTilt - b.shTilt) + Math.abs(f.headTilt - b.headTilt)) * 3, "Level out - you're leaning to one side"],
   ];
   faults.sort((a, c) => c[0] - a[0]);
-  return faults[0][1];
+  const top = faults[0];
+  const prev = lastCueMsg && faults.find((x) => x[1] === lastCueMsg);
+  if (prev && top[1] !== lastCueMsg && top[0] < prev[0] * 1.3) return lastCueMsg;
+  lastCueMsg = top[1];
+  return top[1];
 }
 
 function throttleSend(payload) {

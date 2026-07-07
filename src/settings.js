@@ -108,7 +108,12 @@ function populateCameras({ cameras, active, zoomSupported } = {}) {
     if (!zoomSupported) $("#zoomHint").textContent = "this camera doesn't support zoom";
   }
 }
-window.api.on("cameras:list", populateCameras);
+window.api.on("cameras:list", async (data) => {
+  // The camera may have been switched from the tray - refresh cfg first so the
+  // dropdown selects the actual current camera, not this window's stale copy.
+  cfg = await window.api.invoke("settings:get");
+  populateCameras(data);
+});
 $("#cameraId").addEventListener("change", (e) => {
   cfg.cameraId = e.target.value;
   save({ cameraId: e.target.value });

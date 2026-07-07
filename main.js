@@ -102,7 +102,10 @@ function buildRoutine(kind) {
     return [{ ...s, total: stretchTotal(s) }];
   }
   const disabled = store.get("disabledStretches") || [];
-  const enabled = STRETCH_LIBRARY.filter((s) => !disabled.includes(s.id));
+  let enabled = STRETCH_LIBRARY.filter((s) => !disabled.includes(s.id));
+  // Every stretch toggled off would make an empty routine that "completes" in a
+  // second - fall back to a gentle default instead.
+  if (!enabled.length) enabled = STRETCH_LIBRARY.filter((s) => s.id === "shoulder-rolls");
   const stored = store.get("faultTally") || {};
   const tally = { ...stored };
   // With no posture-fault history yet, nudge wrist work forward - keyboard strain
@@ -308,7 +311,10 @@ let awaySince = 0; // start of the current no-person stretch (stand credit + lon
 let presentSince = 0; // start of the current continuous-presence stretch
 let stillSince = 0; // last significant body movement (posture-variety nudge)
 let warnShownFor = null; // 'micro' | 'long' | null
+let timerShown = false; // cursor pill visible (elevate/show once per warn session)
 let preBreakEscOn = false; // Esc grabbed globally only while the pre-break pill shows
+let preBreakEscTried = false; // don't retry a failed Esc grab every tick
+let lastTimerPos = null; // skip redundant setPosition calls in the 60ms follower
 
 let updateReady = false; // a downloaded update is waiting to install
 let updateVersion = "";
@@ -415,7 +421,7 @@ let lastMenuKey = null;
 let lastTrayKey = null;
 function menuKey() {
   let nb = "off";
-  if ((store.get("microEnabled") || store.get("longEnabled")) && !clockedOut) {
+  if ((store.get("microEnabled") || store.get("longEnabled") || store.get("standEnabled")) && !clockedOut) {
     nb = `${store.get("longEnabled") ? fmtMin(longRemaining) : ""}|${store.get("microEnabled") ? fmtMin(microRemaining) : ""}|${store.get("standEnabled") ? fmtMin(standRemaining) : ""}`;
     if (snoozeUntil > Date.now()) nb = "snooze";
   }
@@ -428,7 +434,7 @@ function refreshMenu() {
 }
 
 function buildMenu() {
-  const breaksOn = store.get("microEnabled") || store.get("longEnabled");
+  const breaksOn = store.get("microEnabled") || store.get("longEnabled") || store.get("standEnabled");
   let nextBreak = "Breaks off";
   if (breaksOn && !clockedOut) {
     const parts = [];
@@ -620,10 +626,17 @@ function calibrate() {
 function invalidateCalibration() {
   store.delete("baseline");
   store.delete("deskCheck");
+  // Updates go "uncalibrated" from here, which skips the glow/cue/tray section -
+  // clear them now or a slouch glow at switch time stays frozen on screen.
+  clearOverlayAlerts();
+  postureState = "init";
+  badSince = null;
+  stillSince = 0;
   const w = wins.monitor;
   if (w && w.webContents) w.webContents.send("monitor:clearBaseline");
   showWin("monitor"); // coaching flow guides them to the Calibrate button
   notify("Camera switched", "Quick recalibration needed: sit tall, then press Calibrate on the camera window.", true);
+  updateTray();
   refreshMenu();
 }
 
@@ -682,7 +695,7 @@ function onPostureUpdate(p) {
           else if (store.get("standMode") !== "alternate") stats.bumpDay("stands");
           standPromptedAt = 0;
         }
-        recordSittingBout();
+        recordSittingBout(awaySince); // the bout ended when they left, not now
         presentSince = 0;
       }
       awaySince = 0;
@@ -771,20 +784,27 @@ function standCycleSecs() {
 }
 
 function startStandPrompt() {
-  stats.bumpDay("standPrompts");
-  standPromptedAt = Date.now();
+  const quiet = sched.isQuietNow(store.store);
   if (store.get("standMode") === "alternate") {
     // Cue the switch, then WAIT for the user to confirm ("yes, I switched") -
     // the next phase is timed from the confirmation, not from the cue. Gentle
     // re-prompt every 5 min until they do.
+    const firstCue = !altAwaiting;
     altAwaiting = altAwaiting || (standPhase === "stand" ? "sit" : "stand");
     standRemaining = 5 * 60;
-    if (!sched.isQuietNow(store.store)) promptSwitch(altAwaiting);
+    if (!quiet) {
+      // Stats and the presence-credit window only count prompts actually shown.
+      if (firstCue) stats.bumpDay("standPrompts");
+      standPromptedAt = Date.now();
+      promptSwitch(altAwaiting);
+    }
     refreshMenu(); // surfaces the "✓ I've switched" menu item
     return;
   }
   standRemaining = standCycleSecs();
-  if (sched.isQuietNow(store.store)) return;
+  if (quiet) return;
+  stats.bumpDay("standPrompts");
+  standPromptedAt = Date.now();
   const mins = store.get("standMinutes") || 5;
   if (store.get("standStyle") === "overlay") { startBreak("stand"); return; }
   if (store.get("soundEnabled")) playSound("nudge");
@@ -836,10 +856,12 @@ function maybeEscalateSound() {
 
 // Close out the current continuous-sitting bout (user left / took a standing
 // break) and remember today's longest for the dashboard.
-function recordSittingBout() {
+function recordSittingBout(endedAt) {
   if (!presentSince) return;
-  const mins = Math.round((Date.now() - presentSince) / 60000);
-  if (mins >= 5) stats.noteLongestSit(mins);
+  // endedAt = when they actually left (for the return-from-away path) - without
+  // it an overnight absence would count as one giant "sitting" bout.
+  const mins = Math.round(((endedAt || Date.now()) - presentSince) / 60000);
+  if (mins >= 5 && mins <= 16 * 60) stats.noteLongestSit(mins);
 }
 
 // Dynamic-posture nudge: even "good" posture held rigidly is bad - Cornell/ANSI
@@ -858,7 +880,7 @@ function maybeVarietyNudge(p) {
   const now = Date.now();
   if (p.move > 0.012 || !stillSince) { stillSince = now; return; }
   if (now - stillSince < Math.max(5, store.get("varietyMin")) * 60000) return;
-  stillSince = now; // one nudge per stretch of stillness
+  stillSince = now; // re-arm: if they stay frozen, nudge again a full varietyMin later
   if (sched.isQuietNow(store.store)) return;
   const style = store.get("nudgeStyle");
   if (style === "silent") return;
@@ -937,6 +959,21 @@ function flashCmd(cmd) {
   else apply();
 }
 
+// Waking from sleep (or unlocking) with stale timers would instantly fire the
+// full escalation burst - strobing border, chime, notification and watch buzz
+// all at once - because badSince/stillSince still point at yesterday. Reset all
+// transient posture state so the app re-observes from scratch.
+function onWakeReset() {
+  badSince = null;
+  stillSince = 0;
+  lastWatchSlouchAt = 0;
+  lastEscalateSound = 0;
+  awaySince = 0;
+  presentSince = 0;
+  standPromptedAt = 0;
+  clearOverlayAlerts();
+}
+
 // Clear every on-screen alert (glow, cue, lean-back HUD) - used whenever posture
 // processing stops (paused, idle, clocked out, break) so nothing stays frozen.
 function clearOverlayAlerts() {
@@ -965,8 +1002,9 @@ function playSound(type, text) {
 function resetBreakTimers() {
   microRemaining = store.get("microIntervalMin") * 60;
   longRemaining = store.get("longIntervalMin") * 60;
-  altAwaiting = null;
-  standRemaining = standCycleSecs();
+  // Keep a pending sit/stand switch alive across timer resets (e.g. the idle
+  // reset after a walk-away - which is often the very stand we asked for).
+  standRemaining = altAwaiting ? 5 * 60 : standCycleSecs();
   hydrationRemaining = store.get("hydrationIntervalMin") * 60;
   warnShownFor = null;
   hideCursorTimer();
@@ -1035,6 +1073,7 @@ function endBreak(kind, skipped) {
     if (!skipped) { recordSittingBout(); presentSince = 0; } // they stood for the routine
   } else if (kind === "stand") {
     if (!skipped) { stats.bumpDay("stands"); recordSittingBout(); presentSince = 0; }
+    standPromptedAt = 0; // this prompt is settled - don't also credit a later walk-away
     standRemaining = standCycleSecs();
   } else if (kind === "breath") {
     // a manual breather doesn't reset any schedule
@@ -1049,9 +1088,12 @@ function endBreak(kind, skipped) {
 // The pre-break warning surfaces (pill / dim) never take focus, so they can't get
 // a keypress. Grab Esc globally just while one is up, so Esc cancels the break.
 function ensurePreBreakEsc() {
-  if (!preBreakEscOn) {
-    try { preBreakEscOn = globalShortcut.register("Escape", cancelImminentBreak); } catch (_) {}
-  }
+  // macOS only: a global bare-Escape grab on Windows steals Esc from games,
+  // dialogs and fullscreen video system-wide, which is worse than the feature.
+  if (process.platform !== "darwin") return;
+  if (preBreakEscOn || preBreakEscTried) return; // don't retry a failed grab every tick
+  preBreakEscTried = true;
+  try { preBreakEscOn = globalShortcut.register("Escape", cancelImminentBreak); } catch (_) {}
 }
 
 // cursor-following pre-break countdown
@@ -1060,10 +1102,16 @@ function showCursorTimer(label, secs) {
   ensurePreBreakEsc();
   const w = getWin("timer");
   const send = () => {
-    elevate(w);
-    w.setIgnoreMouseEvents(true);
-    positionTimerAtCursor();
-    w.showInactive();
+    // CRITICAL: elevate/show the window ONCE per warn session, then only stream
+    // the countdown text. Re-showing/elevating every second is the same
+    // WindowServer-hammering pattern that froze a Mac once already.
+    if (!timerShown) {
+      elevate(w);
+      w.setIgnoreMouseEvents(true);
+      positionTimerAtCursor();
+      w.showInactive();
+      timerShown = true;
+    }
     w.webContents.send("timer:tick", { label, secs });
   };
   if (w.webContents.isLoading()) w.webContents.once("did-finish-load", send);
@@ -1071,8 +1119,10 @@ function showCursorTimer(label, secs) {
 }
 function hideCursorTimer() {
   if (wins.timer && !wins.timer.isDestroyed()) wins.timer.hide();
+  timerShown = false;
   flashCmd({ type: "dim", on: false }); // clear the pre-break tint (preBreakStyle "dim")
   if (preBreakEscOn) { try { globalShortcut.unregister("Escape"); } catch (_) {} preBreakEscOn = false; }
+  preBreakEscTried = false;
 }
 // Esc during the pre-break countdown: skip this break (reset its timer to a full
 // interval) and dismiss the pill. Only meaningful while a warning is showing.
@@ -1087,6 +1137,10 @@ function cancelImminentBreak() {
 function positionTimerAtCursor() {
   if (!wins.timer || wins.timer.isDestroyed()) return;
   const pt = screen.getCursorScreenPoint();
+  // Only move the window when the cursor actually moved - the 60ms follower
+  // otherwise issues ~16 no-op setPosition calls/sec to the window server.
+  if (lastTimerPos && lastTimerPos.x === pt.x && lastTimerPos.y === pt.y) return;
+  lastTimerPos = { x: pt.x, y: pt.y };
   wins.timer.setPosition(pt.x + 18, pt.y + 18);
 }
 
@@ -1112,6 +1166,10 @@ function tick() {
     clearOverlayAlerts(); // don't leave a glow/cue frozen on screen while away
   } else if (!nowIdle && isIdle) {
     isIdle = false;
+    // A 3+ minute idle right after a "switch to standing" cue almost certainly
+    // means they got up - credit the switch before any timer reset can eat it.
+    if (altAwaiting === "stand" && Date.now() - idleStartedAt >= 3 * 60 * 1000 &&
+        standPromptedAt && idleStartedAt - standPromptedAt < 10 * 60 * 1000) confirmSwitch();
     // Sitting still pauses the countdown (above); only a real walk-away (5+ min)
     // should reset it - otherwise reading/watching for a minute kept wiping all
     // progress and the break never fired.
@@ -1136,10 +1194,12 @@ function tick() {
     if (store.get("standEnabled") && standRemaining <= 0) startStandPrompt();
     if (store.get("hydrationEnabled") && hydrationRemaining <= 0) {
       hydrationRemaining = Math.max(10, store.get("hydrationIntervalMin")) * 60;
-      notify("Water break 💧", "A good moment for a few sips.", true);
+      if (!sched.isQuietNow(store.store)) notify("Water break 💧", "A good moment for a few sips.", true);
     }
-
-    if (longDue) startBreak("long");
+    // A stand prompt in "overlay" style may have just started a break - don't
+    // fall through and arm the pre-break warn/Esc over the live overlay.
+    if (breakActive) { /* handled below: warn cleanup runs, rest of tick continues */ }
+    else if (longDue) startBreak("long");
     else if (microDue) startBreak("micro");
     else {
       // pre-break warning for the nearest imminent break: cursor pill (default)
@@ -1153,7 +1213,6 @@ function tick() {
           flashCmd({ type: "dim", on: true, level: Math.min(0.4, 0.4 * (1 - rem / Math.max(1, warn))) });
         } else {
           showCursorTimer(nextKind === "long" ? "Break" : "Eyes", rem);
-          positionTimerAtCursor();
         }
         warnShownFor = nextKind;
       } else if (warnShownFor) {
@@ -1299,6 +1358,20 @@ ipcMain.on("monitor:calibrated", (_e, baseline) => {
 });
 
 ipcMain.on("overlay:done", (_e, { kind, skipped }) => endBreak(kind, skipped));
+// Pausing a break freezes the crash watchdog - otherwise a phone call mid-break
+// would let the watchdog kill the overlay and count the break as skipped.
+ipcMain.on("overlay:pause", (_e, { kind, paused }) => {
+  if (!breakActive) return;
+  clearTimeout(breakWatchdog);
+  if (!paused) {
+    const totalMs = (buildRoutineTotalSec() + 120) * 1000;
+    breakWatchdog = setTimeout(() => { if (breakActive) endBreak(kind, true); }, totalMs);
+  }
+});
+// Conservative watchdog budget on resume: the full routine length again.
+function buildRoutineTotalSec() {
+  return Math.max(120, store.get("longDurationSec") || 180);
+}
 ipcMain.on("overlay:postpone", (_e, { kind, mins }) => {
   clearTimeout(breakWatchdog);
   breakActive = false;
@@ -1460,9 +1533,11 @@ function initAutoUpdate() {
     updateReady = true;
     updateVersion = info.version;
     updateTray();
+    if (sched.isQuietNow(store.store)) return; // tray "Restart to update" still shows
     const n = new Notification({
       title: "Backbone update ready",
       body: `Version ${info.version} downloaded - click to restart and install.`,
+      silent: true,
     });
     n.on("click", installUpdate);
     n.show();
@@ -1529,6 +1604,8 @@ app.whenReady().then(async () => {
   refreshMenu(); // macOS opens the menu natively on click
   // Windows/Linux only open the context menu on right-click; wire left-click too.
   if (process.platform !== "darwin") tray.on("click", () => tray.popUpContextMenu());
+  powerMonitor.on("resume", onWakeReset);
+  powerMonitor.on("unlock-screen", onWakeReset);
   resetBreakTimers();
   updateTray();
   makeWin("monitor");

@@ -115,6 +115,8 @@ function finish() {
   clearInterval(timer);
   el("name").textContent = "All done 🎉";
   el("side").textContent = "";
+  el("side").classList.remove("show");
+  el("ringWrap").classList.remove("inhale", "exhale");
   el("cue").textContent = "Nice work - back to it with a looser, taller spine.";
   el("count").textContent = "✓";
   el("ring").setAttribute("stroke-dashoffset", "0");
@@ -138,6 +140,7 @@ function sendDone(skipped) {
 el("pause").addEventListener("click", () => {
   paused = !paused;
   el("pause").textContent = paused ? "Resume" : "Pause";
+  window.api.send("overlay:pause", { kind, paused }); // main freezes the watchdog while paused
 });
 el("skip").addEventListener("click", () => { if (!ended) { idx++; playStretch(); } });
 el("postpone").addEventListener("click", () => { if (ended) return; ended = true; clearInterval(timer); window.api.send("overlay:postpone", { kind, mins: 5 }); });
@@ -163,7 +166,7 @@ window.api.on("overlay:show", (p) => {
   document.querySelector(".controls").classList.remove("hidden");
   document.querySelector(".endrow").classList.remove("hidden");
   el("skip").classList.toggle("hidden", kind !== "long" || !allowSkip);
-  el("postpone").classList.toggle("hidden", !allowSkip);
+  el("postpone").classList.toggle("hidden", !allowSkip || kind === "breath"); // a manual breather has nothing to postpone
   el("end").classList.toggle("hidden", !allowSkip);
   idx = 0; paused = false; ended = false; el("pause").textContent = "Pause";
   buildDots();

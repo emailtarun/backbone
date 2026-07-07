@@ -2,12 +2,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 const sendChannels = [
   "posture:update", "monitor:ready", "monitor:error", "monitor:calibrated",
-  "overlay:done", "overlay:postpone", "window:close", "break:test", "watch:test",
+  "overlay:done", "overlay:postpone", "overlay:pause", "window:close", "break:test", "watch:test",
   "setup:setMonitoring", "setup:calibrate", "setup:done", "setup:showCamera",
   "cameras:list", "report:error", "report:send",
 ];
 const onChannels = [
-  "monitor:config", "monitor:setPaused", "monitor:calibrate",
+  "monitor:config", "monitor:setPaused", "monitor:calibrate", "monitor:clearBaseline",
   "sound:play", "flash:cmd", "overlay:show", "timer:tick",
   "setup:posture", "setup:calibrated", "setup:cameraError", "watch:testResult", "cameras:list", "monitor:baseline",
 ];
